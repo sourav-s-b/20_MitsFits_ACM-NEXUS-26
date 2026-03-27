@@ -478,3 +478,49 @@
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── AI Reason card ── */
+.ai-reason-card { border-left: 3px solid var(--accent); }
+.ai-reason-card.ai-critical { border-color: var(--accent-red); }
+.ai-reason-card.ai-high     { border-color: #f97316; }
+.ai-reason-card.ai-moderate { border-color: var(--accent-amber); }
+.ai-reason-card.ai-safe     { border-color: var(--accent-green); }
+
+.ai-level-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.ai-level-critical { background: rgba(239,68,68,0.15);   color: var(--accent-red); }
+.ai-level-high     { background: rgba(249,115,22,0.15);  color: #f97316; }
+.ai-level-moderate { background: rgba(245,158,11,0.15);  color: var(--accent-amber); }
+.ai-level-safe     { background: rgba(16,185,129,0.15);  color: var(--accent-green); }
+
+.ai-reason-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* ── Weather telemetry ── */
+.weather-telemetry {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.weather-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.weather-row span { color: var(--text-secondary); }

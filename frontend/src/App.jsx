@@ -8,7 +8,7 @@ import "./App.css";
 
 const API = "http://127.0.0.1:8000";
 
-// ── Fix the default Leaflet icon path (Vite asset issue) ──
+// ── Fix Leaflet icon paths for Vite ──
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
@@ -26,7 +26,7 @@ const truckIcon = new L.DivIcon({
     font-size:14px;box-shadow:0 0 12px rgba(99,102,241,0.7);
   ">🚛</div>`,
   className: "",
-  iconSize: [28, 28],
+  iconSize:   [28, 28],
   iconAnchor: [14, 14],
 });
 
@@ -40,11 +40,11 @@ const destIcon = new L.DivIcon({
     font-size:12px;box-shadow:0 0 10px rgba(16,185,129,0.5);
   ">📍</div>`,
   className: "",
-  iconSize: [24, 24],
+  iconSize:   [24, 24],
   iconAnchor: [12, 12],
 });
 
-// Auto-recentre helper
+// Auto-recentre map on first load
 function RecenterMap({ coords }) {
   const map = useMap();
   const firstRun = useRef(true);
@@ -58,7 +58,7 @@ function RecenterMap({ coords }) {
   return null;
 }
 
-// ── Risk colour helper ──
+// ── Colour helpers ──
 function riskColor(score) {
   if (score > 0.6) return "#ef4444";
   if (score > 0.4) return "#f59e0b";
@@ -72,6 +72,13 @@ function statusBadgeClass(status) {
   return "badge-safe";
 }
 
+function aiLevelClass(level) {
+  if (level === "CRITICAL") return "ai-critical";
+  if (level === "HIGH")     return "ai-high";
+  if (level === "MODERATE") return "ai-moderate";
+  return "ai-safe";
+}
+
 function alertClass(severity) {
   if (severity === "HIGH RISK") return "alert-high";
   if (severity === "WARNING")   return "alert-warning";
@@ -81,10 +88,10 @@ function alertClass(severity) {
 
 // ── Animated SVG risk ring ──
 function RiskRing({ score }) {
-  const r = 28;
+  const r    = 28;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - score);
-  const color = riskColor(score);
+  const color  = riskColor(score);
   return (
     <div className="risk-ring">
       <svg width="72" height="72" viewBox="0 0 72 72">
@@ -105,17 +112,36 @@ function RiskRing({ score }) {
   );
 }
 
-// ═══════════════════════════════════
+// ── AI Reason card ──
+function AIReasonCard({ aiLevel, aiReason, lastRun }) {
+  if (!aiReason) return null;
+  return (
+    <div className={`nexus-card ai-reason-card ${aiLevelClass(aiLevel)}`}>
+      <div className="nexus-card-title" style={{ display: "flex", justifyContent: "space-between" }}>
+        <span>🧠 AI Intelligence</span>
+        {lastRun && <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "var(--text-muted)" }}>{lastRun}</span>}
+      </div>
+      <div className={`ai-level-badge ai-level-${(aiLevel || "safe").toLowerCase()}`}>
+        {aiLevel || "—"}
+      </div>
+      <div className="ai-reason-text">{aiReason}</div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
 // Main App
-// ═══════════════════════════════════
+// ══════════════════════════════════════════════════════════
 export default function App() {
   const [shipment, setShipment]       = useState(null);
   const [reroutes, setReroutes]       = useState([]);
   const [recommended, setRecommended] = useState(null);
   const [selected, setSelected]       = useState(null);
   const [loading, setLoading]         = useState(true);
-  const [rerouteLoading, setRerouteLoading] = useState(false);
-  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [rerouteLoading, setRerouteLoading]   = useState(false);
+  const [confirmLoading, setConfirmLoading]   = useState(false);
+  const [stormLoading, setStormLoading]       = useState(false);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
 
   // ── Poll /state every 3 s ──
   useEffect(() => {
@@ -125,6 +151,12 @@ export default function App() {
         const data = await res.json();
         setShipment(data);
         setLoading(false);
+        // If state now has reroute options (from pipeline), show them
+        if (data.reroute_options?.length > 0 && reroutes.length === 0) {
+          setReroutes(data.reroute_options);
+          const rec = data.reroute_options.find(r => r.recommended);
+          if (rec) { setRecommended(rec.id); setSelected(rec.id); }
+        }
       } catch (e) {
         console.error("State fetch error:", e);
       }
@@ -134,16 +166,47 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // ── POST /event (Inject Risk) ──
+  // ── POST /event (manual risk inject) ──
   const handleInjectRisk = async () => {
     await fetch(`${API}/event`, {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "traffic_spike" }),
+      body:    JSON.stringify({ type: "traffic_spike" }),
     });
   };
 
-  // ── GET /reroute ──
+  // ── POST /simulate-storm (full pipeline demo trigger) ──
+  const handleSimulateStorm = async () => {
+    setStormLoading(true);
+    try {
+      const res  = await fetch(`${API}/simulate-storm`, { method: "POST" });
+      const data = await res.json();
+      // If pipeline returned a shadow route, populate reroutes
+      if (data.shadow_ready && data.shadow_route?.length > 0) {
+        setReroutes(shipment?.reroute_options || []);
+        setSelected("route_shadow");
+        setRecommended("route_shadow");
+      }
+    } catch (e) {
+      console.error("Simulate storm error:", e);
+    } finally {
+      setStormLoading(false);
+    }
+  };
+
+  // ── GET /pipeline (manual pipeline run) ──
+  const handleRunPipeline = async () => {
+    setPipelineLoading(true);
+    try {
+      await fetch(`${API}/pipeline`);
+    } catch (e) {
+      console.error("Pipeline error:", e);
+    } finally {
+      setPipelineLoading(false);
+    }
+  };
+
+  // ── GET /reroute (manual TomTom options) ──
   const handleGetReroute = async () => {
     setRerouteLoading(true);
     try {
@@ -165,9 +228,9 @@ export default function App() {
     setConfirmLoading(true);
     try {
       await fetch(`${API}/confirm-reroute`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ route_id: selected }),
+        body:    JSON.stringify({ route_id: selected }),
       });
       setReroutes([]);
       setSelected(null);
@@ -196,20 +259,28 @@ export default function App() {
     );
   }
 
-  // Polylines
+  // Computed polylines
   const mainRoutePoints = (shipment.route || []).map(p => [p.lat, p.lon]);
   const currentPos = [shipment.current_location.lat, shipment.current_location.lon];
   const destPos    = [shipment.destination.lat, shipment.destination.lon];
+  const rColor     = riskColor(shipment.risk_score);
 
-  const rColor = riskColor(shipment.risk_score);
+  // Map polylines from reroute options
+  const activeReroutes = reroutes.length > 0
+    ? reroutes
+    : (shipment.reroute_options || []);
 
-  // Ghost alt route — the NON-selected option's polyline
-  const altRoute = reroutes.find(r => r.id !== selected);
-  const altPoints = altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+  const altRoute  = activeReroutes.find(r => r.id !== selected);
+  const altPoints = altRoute
+    ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon])
+    : [];
 
-  // Selected route polyline
-  const selRoute = reroutes.find(r => r.id === selected);
-  const selPoints = selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+  const selRoute  = activeReroutes.find(r => r.id === selected);
+  const selPoints = selRoute
+    ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon])
+    : [];
+
+  const weather = shipment.weather || {};
 
   return (
     <div className="nexus-shell">
@@ -224,6 +295,9 @@ export default function App() {
           <span>SHP: <span>{shipment.shipment_id}</span></span>
           <span>ROUTE IDX: <span>{shipment.route_index ?? "—"}</span></span>
           <span>ETA: <span>{shipment.eta ?? "—"} min</span></span>
+          {shipment.pipeline_last_run && (
+            <span>PIPELINE: <span style={{ color: "var(--accent-cyan)" }}>{shipment.pipeline_last_run}</span></span>
+          )}
         </div>
       </header>
 
@@ -237,45 +311,29 @@ export default function App() {
               attribution='&copy; <a href="https://carto.com/">CARTO</a>'
             />
 
-            {/* Main route — colour by risk */}
+            {/* Main route — colour changes with risk */}
             {mainRoutePoints.length > 0 && (
-              <Polyline
-                positions={mainRoutePoints}
-                color={rColor}
-                weight={4}
-                opacity={0.75}
-              />
+              <Polyline positions={mainRoutePoints} color={rColor} weight={4} opacity={0.75} />
             )}
 
             {/* Ghost alternate route (dashed cyan) */}
             {altPoints.length > 0 && (
-              <Polyline
-                positions={altPoints}
-                color="#22d3ee"
-                weight={3}
-                opacity={0.5}
-                dashArray="8 6"
-              />
+              <Polyline positions={altPoints} color="#22d3ee" weight={3} opacity={0.5} dashArray="8 6" />
             )}
 
-            {/* Selected reroute (solid cyan) */}
+            {/* Selected / shadow route (solid cyan) */}
             {selPoints.length > 0 && (
-              <Polyline
-                positions={selPoints}
-                color="#22d3ee"
-                weight={4}
-                opacity={0.9}
-              />
+              <Polyline positions={selPoints} color="#22d3ee" weight={4} opacity={0.9} />
             )}
 
-            {/* Truck marker */}
+            {/* Truck */}
             <Marker position={currentPos} icon={truckIcon}>
               <Tooltip permanent direction="top" offset={[0, -16]}>
                 <span style={{ fontSize: "11px" }}>🚛 {shipment.status}</span>
               </Tooltip>
             </Marker>
 
-            {/* Destination marker */}
+            {/* Destination */}
             <Marker position={destPos} icon={destIcon} />
 
             <RecenterMap coords={shipment.current_location} />
@@ -288,7 +346,12 @@ export default function App() {
             </div>
             {altPoints.length > 0 && (
               <div className="map-tag map-tag-alt">
-                <div className="map-tag-dot" /> Alt Route
+                <div className="map-tag-dot" /> Shadow Route
+              </div>
+            )}
+            {weather.description && (
+              <div className="map-tag" style={{ background: "rgba(99,102,241,0.12)", borderColor: "rgba(99,102,241,0.4)", color: "var(--accent)" }}>
+                🌤 {weather.description}
               </div>
             )}
           </div>
@@ -311,7 +374,14 @@ export default function App() {
             </div>
           </div>
 
-          {/* Signals */}
+          {/* AI Reason card — shows when pipeline has run */}
+          <AIReasonCard
+            aiLevel={shipment.ai_level}
+            aiReason={shipment.ai_reason}
+            lastRun={shipment.pipeline_last_run}
+          />
+
+          {/* Signal + Weather feed */}
           <div className="nexus-card">
             <div className="nexus-card-title">Signal Feed</div>
 
@@ -319,7 +389,7 @@ export default function App() {
               <span className="signal-label">Traffic Delay</span>
               <div className="signal-bar-track">
                 <div className="signal-bar-fill" style={{
-                  width: `${Math.min(shipment.signals.traffic_delay / 60 * 100, 100)}%`,
+                  width:      `${Math.min(shipment.signals.traffic_delay / 60 * 100, 100)}%`,
                   background: shipment.signals.traffic_delay > 30 ? "#ef4444" : "#6366f1"
                 }} />
               </div>
@@ -327,33 +397,76 @@ export default function App() {
             </div>
 
             <div className="signal-row">
-              <span className="signal-label">Weather Score</span>
+              <span className="signal-label">Weather Risk</span>
               <div className="signal-bar-track">
                 <div className="signal-bar-fill" style={{
-                  width: `${shipment.signals.weather_score * 100}%`,
-                  background: shipment.signals.weather_score > 0.6 ? "#f59e0b" : "#10b981"
+                  width:      `${(shipment.signals.weather_score || 0) * 100}%`,
+                  background: (shipment.signals.weather_score || 0) > 0.6 ? "#f59e0b" : "#10b981"
                 }} />
               </div>
-              <span className="signal-value">{shipment.signals.weather_score.toFixed(2)}</span>
+              <span className="signal-value">{((shipment.signals.weather_score || 0)).toFixed(2)}</span>
             </div>
+
+            {/* Live weather telemetry (from OpenWeatherMap) */}
+            {weather.temp_c !== undefined && (
+              <div className="weather-telemetry">
+                <div className="weather-row">
+                  <span>🌡 {weather.temp_c}°C</span>
+                  <span>💧 {weather.humidity}%</span>
+                  <span>💨 {weather.wind_kph} km/h</span>
+                </div>
+                <div className="weather-row" style={{ marginTop: 4 }}>
+                  <span>👁 {weather.visibility_km} km vis</span>
+                  {weather.rain_1h_mm > 0 && <span>🌧 {weather.rain_1h_mm}mm/h</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action buttons */}
           <div className="nexus-card">
             <div className="nexus-card-title">Actions</div>
+
+            {/* Row 1: Storm sim + Pipeline */}
             <div className="nexus-btn-row" style={{ marginBottom: 8 }}>
-              <button id="btn-inject-risk" className="nexus-btn btn-danger" onClick={handleInjectRisk}>
+              <button
+                id="btn-simulate-storm"
+                className={`nexus-btn btn-danger ${stormLoading ? "btn-loading" : ""}`}
+                onClick={handleSimulateStorm}
+                disabled={stormLoading}
+              >
+                {stormLoading ? "…" : "🌩 Simulate Storm"}
+              </button>
+              <button
+                id="btn-run-pipeline"
+                className={`nexus-btn btn-cyan ${pipelineLoading ? "btn-loading" : ""}`}
+                onClick={handleRunPipeline}
+                disabled={pipelineLoading}
+              >
+                {pipelineLoading ? "…" : "⚡ Run Pipeline"}
+              </button>
+            </div>
+
+            {/* Row 2: Manual reroute + Inject */}
+            <div className="nexus-btn-row" style={{ marginBottom: 8 }}>
+              <button
+                id="btn-inject-risk"
+                className="nexus-btn btn-ghost"
+                onClick={handleInjectRisk}
+              >
                 ⚡ Inject Risk
               </button>
               <button
                 id="btn-get-reroute"
-                className={`nexus-btn btn-cyan ${rerouteLoading ? "btn-loading" : ""}`}
+                className={`nexus-btn btn-ghost ${rerouteLoading ? "btn-loading" : ""}`}
                 onClick={handleGetReroute}
                 disabled={rerouteLoading}
               >
-                {rerouteLoading ? "…" : "🛰 Get Reroute"}
+                {rerouteLoading ? "…" : "🛰 Reroute"}
               </button>
             </div>
+
+            {/* Row 3: Reset */}
             <div className="nexus-btn-row">
               <button id="btn-reset" className="nexus-btn btn-ghost" onClick={handleReset}>
                 ↺ Reset
@@ -362,15 +475,15 @@ export default function App() {
           </div>
 
           {/* Reroute options */}
-          {reroutes.length > 0 && (
+          {activeReroutes.length > 0 && (
             <div className="nexus-card">
               <div className="nexus-card-title">Route Options</div>
               <div className="route-options-grid">
-                {reroutes.map(r => (
+                {activeReroutes.map(r => (
                   <div
                     key={r.id}
                     id={`route-option-${r.id}`}
-                    className={`route-card 
+                    className={`route-card
                       ${selected === r.id ? "selected" : ""}
                       ${r.id === recommended ? "recommended-badge" : ""}
                     `}
@@ -378,14 +491,12 @@ export default function App() {
                   >
                     <div className="route-card-id">{r.id.toUpperCase()}</div>
                     <div className="route-card-stats">
-                      <div>
-                        <span className="route-stat">{r.travel_time_min}</span>
-                        <span className="route-stat-unit">min</span>
-                      </div>
-                      <div>
-                        <span className="route-stat">{r.distance_km}</span>
-                        <span className="route-stat-unit">km</span>
-                      </div>
+                      {r.travel_time_min && (
+                        <div><span className="route-stat">{r.travel_time_min}</span><span className="route-stat-unit">min</span></div>
+                      )}
+                      {r.distance_km && (
+                        <div><span className="route-stat">{r.distance_km}</span><span className="route-stat-unit">km</span></div>
+                      )}
                     </div>
                     {r.reason && <div className="route-reason">↳ {r.reason}</div>}
                   </div>
@@ -394,7 +505,7 @@ export default function App() {
               <button
                 id="btn-confirm-reroute"
                 className={`nexus-btn btn-green ${confirmLoading ? "btn-loading" : ""}`}
-                style={{ width: "100%" }}
+                style={{ width: "100%", marginTop: 8 }}
                 onClick={handleConfirmReroute}
                 disabled={!selected || confirmLoading}
               >
@@ -414,7 +525,7 @@ export default function App() {
                   <div key={i} className={`alert-item ${alertClass(alert.severity)}`}>
                     <div className="alert-header">
                       <span className="alert-severity" style={{ color: riskColor(alert.risk_score) }}>
-                        {alert.severity}
+                        {alert.ai_level || alert.severity}
                       </span>
                       <span className="alert-time">{alert.timestamp}</span>
                     </div>

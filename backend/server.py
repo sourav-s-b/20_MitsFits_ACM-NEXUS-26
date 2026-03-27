@@ -6,18 +6,23 @@ from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 
 from simulator import run_simulation
-from routes.main_routes import router as main_router
-from routes.decision_routes import router as decision_router
+from routes.main_routes         import router as main_router
+from routes.decision_routes     import router as decision_router
+from routes.orchestration_routes import router as orchestration_router
 
 # =========================
 # LOAD ENV VARIABLES
 # =========================
-load_dotenv()
+load_dotenv(override=True)
 
 # =========================
 # INIT APP
 # =========================
-app = FastAPI()
+app = FastAPI(
+    title="NexusPath API",
+    description="Smart logistics risk intelligence platform",
+    version="1.0.0",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,15 +34,15 @@ app.add_middleware(
 # =========================
 # INCLUDE ROUTERS
 # =========================
-app.include_router(main_router, prefix="", tags=["main"])
-app.include_router(decision_router, prefix="", tags=["decision"])
+app.include_router(main_router,          prefix="", tags=["shipment"])
+app.include_router(decision_router,      prefix="", tags=["decision"])
+app.include_router(orchestration_router, prefix="", tags=["orchestration"])
 
 # =========================
 # BACKGROUND SIMULATION
 # =========================
 def start_simulation_thread():
-    thread = threading.Thread(target=run_simulation)
-    thread.daemon = True
+    thread = threading.Thread(target=run_simulation, daemon=True)
     thread.start()
 
 start_simulation_thread()
