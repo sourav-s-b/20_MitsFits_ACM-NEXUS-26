@@ -147,7 +147,7 @@ def _local_risk_model(traffic: float, weather: float, hour: int) -> dict:
         "risk": risk,
         "level": level,
         "reason": reason,
-        "source": "Nexus-Brain Core",
+        "source": "Onyx-Brain Core",
         "is_compound": (compound_factor > 1.0),
         "is_night": is_night
     }
@@ -287,12 +287,17 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None, e
     }
     shipment["status"] = STATUS_MAP.get(level, "SAFE")
 
-    shadow_route_options = []
-    if risk > 0.7:
-        shadow_route_options = await get_reroute_options_tomtom(shipment_id)
-        if shadow_route_options:
-            shipment["reroute_options"] = shadow_route_options
+    # ONYX Continuous Intelligence: Always prepare shadow routes for sudden events
+    # We fetch them if missing or every ~10 ticks (30s) to keep them relative to current pos
+    ticks = shipment.get("ticks_since_route_update", 0)
+    if not shipment.get("reroute_options") or ticks >= 10:
+        shadow = await get_reroute_options_tomtom(shipment_id)
+        if shadow:
+            shipment["reroute_options"] = shadow
             shipment["shadow_route_ready"] = True
+            shipment["ticks_since_route_update"] = 0
+    else:
+        shipment["ticks_since_route_update"] = ticks + 1
 
     alert = {
         "timestamp": time.strftime("%H:%M"),

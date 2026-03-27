@@ -19,24 +19,31 @@ if not TOMTOM_API_KEY:
     raise ValueError("❌ TOMTOM_API_KEY not found in .env file")
 
 
-async def get_route(origin: str, destination: str):
+async def get_routes(origin: str, destination: str):
     url = (
         f"https://api.tomtom.com/routing/1/calculateRoute"
         f"/{origin}:{destination}/json"
-        f"?key={TOMTOM_API_KEY}&travelMode=truck"
+        f"?key={TOMTOM_API_KEY}&travelMode=truck&maxAlternatives=3"
     )
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=10.0)
             if resp.status_code != 200:
-                print("❌ API Error:", resp.text)
                 return []
             data = resp.json()
 
-        points = data["routes"][0]["legs"][0]["points"]
-        return [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
-    except Exception as e:
-        print("❌ Exception in get_route:", e)
+        routes_data = []
+        for i, r in enumerate(data.get("routes", [])):
+            points = r["legs"][0]["points"]
+            polyline = [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
+            routes_data.append({
+                "id": f"route_{chr(65+i)}",
+                "polyline": polyline,
+                "travel_time_min": round(r["summary"]["travelTimeInSeconds"] / 60),
+                "distance_km": round(r["summary"]["lengthInMeters"] / 1000, 1)
+            })
+        return routes_data
+    except Exception:
         return []
 
 
@@ -50,14 +57,15 @@ async def start_shipment(shipment_id: str, req: StartRequest = None):
     origin = req.origin if req else "9.9312,76.2673"
     destination = req.destination if req else "12.9716,77.5946"
 
-    route = await get_route(origin, destination)
-    if not route:
+    routes = await get_routes(origin, destination)
+    if not routes:
         return {"error": "Route not found. Check API key or coordinates."}
 
     shipment = get_shipment(shipment_id)
-    shipment["route"] = route
+    shipment["route"] = routes[0]["polyline"]
+    shipment["reroute_options"] = []
     shipment["route_index"] = 0
-    shipment["current_location"] = route[0]
+    shipment["current_location"] = shipment["route"][0]
     shipment["destination"] = {
         "lat": float(destination.split(",")[0]),
         "lon": float(destination.split(",")[1])
@@ -65,7 +73,6 @@ async def start_shipment(shipment_id: str, req: StartRequest = None):
     shipment["status"] = "SAFE"
     shipment["risk_score"] = 0.0
     shipment["alerts"] = []
-    shipment["reroute_options"] = []
 
     set_shipment(shipment_id, shipment)
 
@@ -75,7 +82,7 @@ async def start_shipment(shipment_id: str, req: StartRequest = None):
     except Exception as e:
         print(f"DB Save Error: {e}")
 
-    return {"message": f"✅ Shipment {shipment_id} started", "total_points": len(route)}
+    return {"message": f"✅ Shipment {shipment_id} started", "total_points": len(shipment["route"])}
 
 
 @router.post("/shipments/{shipment_id}/traffic")
@@ -120,6 +127,6 @@ def mock_login(req: LoginRequest):
         return {
             "token": "mock-jwt-token-12345",
             "role": "Global Dispatcher",
-            "name": "Nexus Admin"
+            "name": "Onyx Admin"
         }
     return {"error": "Invalid credentials", "status": 401}

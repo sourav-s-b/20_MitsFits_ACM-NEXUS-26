@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import asyncio
-import os
 from dotenv import load_dotenv
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,7 +36,7 @@ async def lifespan(app: FastAPI):
 # INIT APP
 # =========================
 app = FastAPI(
-    title="NexusPath API",
+    title="OnyxPath API",
     description="Smart logistics risk intelligence platform",
     version="1.0.0",
     lifespan=lifespan,

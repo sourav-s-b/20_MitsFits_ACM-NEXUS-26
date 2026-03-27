@@ -66,7 +66,7 @@ async def compute_risk(shipment: dict):
         shipment["ai_reason"] = data.get("ai_reason", "Real-time analysis active.")
         shipment["ai_level"] = data.get("status")
     except Exception:
-        # Fallback to local elite rule engine (Nexus-Brain)
+        # Fallback to local elite rule engine (Onyx-Brain)
         p2_result = call_person2(shipment["shipment_id"], loc["lat"], loc["lon"])
         shipment["risk_score"] = p2_result["risk"]
         shipment["ai_reason"] = p2_result["reason"]
@@ -107,8 +107,8 @@ async def compute_risk(shipment: dict):
     elif shipment["risk_score"] > 0.2:
         shipment["status"] = "WARNING"
     else:
-        # Recovery to SAFE
-        if shipment["status"] not in ("SAFE", "REROUTED"):
+        # Recovery to SAFE: allow even REROUTED to go back to SAFE if risk is very low
+        if shipment["risk_score"] < 0.2:
              shipment["status"] = "SAFE"
         # If they were rerouted but risk is now safe, we keep "REROUTED" 
         # as a status badge but the intelligence is nominal.
