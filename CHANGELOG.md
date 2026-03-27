@@ -103,3 +103,22 @@
 
 ### Issues Faced
 - Preserving strict REST semantics without breaking prototype logic constraints via dynamic path routing overrides.
+
+## 23:59
+
+### Features Added
+- Validated Person 1's API integration inside `simulator.py` to ensure TomTom and OpenWeatherMap actual data feeds map successfully to the risk models.
+- Entirely overhauled `App.jsx` from a single screen into a Multi-Tab Logistics Dashboard.
+- Built active state-swapping layout with Sidebar `<nav>` mapping logic.
+- Built **Fleet Logistics** tab leveraging new backend multi-tenant data structures via `GET /shipments`.
+- Built **Delivery History** tab visualizing SQLite audit trail via `/shipments/{id}/history`.
+- Built styled CSS dashboard framework in `App.css` complementing existing Leaflet dark-map overlays.
+
+### Files Modified
+- frontend/src/App.jsx
+- frontend/src/App.css
+- progress/4.md (Created)
+
+### Issues Faced
+- `[Errno 10048] address already in use` blocked uvicorn rebooting. Resolved by terminating backend python PID directly via `taskkill`.
+- Juggling WebSocket connections during React tab switching. Avoided disconnection lag by persisting `shipmentId` at the outer parent tree level.
