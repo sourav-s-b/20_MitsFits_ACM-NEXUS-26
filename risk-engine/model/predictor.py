@@ -118,7 +118,7 @@ def compute_risk(lat: float, lon: float, override: dict = None) -> dict:
         except Exception as e:
             print(f"[Model] Prediction failed: {e}")
             # Fallback to manual formula
-            risk = norm_traffic * 0.50 + weather * 0.35 + time_risk * 0.15
+            risk = min(traffic / 60, 1.0) * 0.50 + weather * 0.35 + time_risk * 0.15
     else:
         # Weighted formula fallback
         risk = min(traffic / 60, 1.0) * 0.50 + weather * 0.35 + time_risk * 0.15

@@ -3,7 +3,8 @@ import requests
 import os
 from dotenv import load_dotenv
 
-from state import shipment
+from live_store import get_shipment, set_shipment
+from database import save_shipment
 
 router = APIRouter()
 
@@ -11,71 +12,64 @@ router = APIRouter()
 # LOAD ENV VARIABLES
 # =========================
 load_dotenv()
-
 TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY")
 
 if not TOMTOM_API_KEY:
     raise ValueError("❌ TOMTOM_API_KEY not found in .env file")
 
-# =========================
-# ROUTE FETCHING FUNCTION
-# =========================
-def get_route(origin, destination):
+def get_route(origin: str, destination: str):
     url = (
         f"https://api.tomtom.com/routing/1/calculateRoute"
         f"/{origin}:{destination}/json"
         f"?key={TOMTOM_API_KEY}&travelMode=truck"
     )
-
     try:
         res = requests.get(url, timeout=10)
-
         if res.status_code != 200:
             print("❌ API Error:", res.text)
             return []
-
         data   = res.json()
         points = data["routes"][0]["legs"][0]["points"]
-        route  = [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
-        return route
-
+        return [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
     except Exception as e:
         print("❌ Exception in get_route:", e)
         return []
 
-
-# =========================
-# START SHIPMENT
-# =========================
-@router.post("/start")
-def start_shipment():
+@router.post("/shipments/{shipment_id}/start")
+def start_shipment(shipment_id: str):
+    # Hardcoded origin/destination for demo, but mapped to shipment_id
     origin      = "9.9312,76.2673"
     destination = "12.9716,77.5946"
 
     route = get_route(origin, destination)
-
     if not route:
         return {"error": "Route not found. Check API key or coordinates."}
 
-    shipment["route"]            = route
-    shipment["route_index"]      = 0
+    shipment = get_shipment(shipment_id)
+    shipment["route"] = route
+    shipment["route_index"] = 0
     shipment["current_location"] = route[0]
-    shipment["status"]           = "SAFE"
-    shipment["risk_score"]       = 0.0
-    shipment["alerts"]           = []
-    shipment["reroute_options"]  = []
+    shipment["status"] = "SAFE"
+    shipment["risk_score"] = 0.0
+    shipment["alerts"] = []
+    shipment["reroute_options"] = []
+    
+    set_shipment(shipment_id, shipment)
+    
+    # Save to SQLite
+    try:
+        save_shipment(shipment)
+    except Exception as e:
+        print(f"DB Save Error: {e}")
 
     return {
-        "message":      "✅ Shipment started",
+        "message":      f"✅ Shipment {shipment_id} started",
         "total_points": len(route)
     }
 
-
-# =========================
-# SIMULATE TRAFFIC SPIKE (simple helper)
-# =========================
-@router.post("/traffic")
-def traffic_spike():
-    """Quick signal-only nudge — use POST /event for the full demo trigger."""
+@router.post("/shipments/{shipment_id}/traffic")
+def traffic_spike(shipment_id: str):
+    shipment = get_shipment(shipment_id)
     shipment["signals"]["traffic_delay"] = 60
-    return {"message": "Traffic spike signal set"}
+    set_shipment(shipment_id, shipment)
+    return {"message": "Traffic spike signal set"}
