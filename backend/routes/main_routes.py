@@ -73,3 +73,46 @@ def traffic_spike(shipment_id: str):
     shipment["signals"]["traffic_delay"] = 60
     set_shipment(shipment_id, shipment)
     return {"message": "Traffic spike signal set"}
+
+# =========================
+# PERSON 3 EXTENSION APIS
+# =========================
+@router.get("/shipments")
+def get_all_shipments():
+    """Return all active shipments for the Fleet Dashboard."""
+    from live_store import get_all_active_shipments
+    shipments = get_all_active_shipments()
+    return [
+        {
+            "shipment_id": s["shipment_id"],
+            "current_location": s["current_location"],
+            "status": s["status"],
+            "risk_score": s["risk_score"],
+            "eta": s["eta"]
+        } for s in shipments
+    ]
+
+@router.get("/shipments/{shipment_id}/history")
+def get_shipment_history(shipment_id: str):
+    """Return the audit log history for a specific shipment."""
+    from database import get_audit_history
+    history = get_audit_history(shipment_id)
+    return {"shipment_id": shipment_id, "history": history}
+
+from pydantic import BaseModel
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@router.post("/login")
+def mock_login(req: LoginRequest):
+    """Mock authentication endpoint for Person 4's auth screen."""
+    # Extremely basic mock since this is a hackathon
+    if req.password == "password":
+        return {
+            "token": "mock-jwt-token-12345",
+            "role": "Global Dispatcher",
+            "name": "Nexus Admin"
+        }
+    return {"error": "Invalid credentials", "status": 401}

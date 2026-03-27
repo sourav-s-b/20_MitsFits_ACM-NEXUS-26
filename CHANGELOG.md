@@ -87,3 +87,19 @@
 
 ### Issues Faced
 - Leaflet re-rendering errors caused by React polling interval overriding native state. Resolved gracefully by switching purely to WebSocket push events preventing double-mutations.
+
+## 23:45
+
+### Features Added
+- Defined precise Person 3 Data Contracts extending beyond live mapping.
+- Added `GET /shipments` to pull overarching active fleet telemetry.
+- Added `GET /shipments/{id}/history` to unlock SQLite delivery logging.
+- Created `POST /login` mock to facilitate React application auth guarding.
+
+### Files Modified
+- backend/database.py
+- backend/routes/main_routes.py
+- progress/3.md (Created)
+
+### Issues Faced
+- Preserving strict REST semantics without breaking prototype logic constraints via dynamic path routing overrides.
