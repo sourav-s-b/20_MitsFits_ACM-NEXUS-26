@@ -448,9 +448,6 @@ export default function App() {
     const rColor = riskColor(shipment.risk_score);
     const activeReroutes = reroutes.length > 0 ? reroutes : (shipment.reroute_options || []);
 
-    const altRoute = activeReroutes.find(r => r.id !== selected);
-    const altPoints = altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]) : [];
-
     const selRoute = activeReroutes.find(r => r.id === selected);
     const selPoints = selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]) : [];
 
@@ -460,9 +457,14 @@ export default function App() {
       try {
         const res = await fetch(`${API}/reroute`);
         const data = await res.json();
-        if (data.routes && data.routes.length > 0) {
-          setReroutes(data.routes);
-          setSelected(data.routes[0].id);
+        // Backend returns { options: [...] } — not data.routes
+        const opts = data.options || data.routes || [];
+        if (opts.length > 0) {
+          setReroutes(opts);
+          const rec = opts.find(r => r.recommended) || opts[0];
+          setSelected(rec.id);
+        } else {
+          console.warn("Reroute: no options returned", data);
         }
       } catch (e) {
         console.error("Reroute fetch failed", e);
@@ -575,13 +577,31 @@ export default function App() {
               </div>
               <span className="signal-value">{parseFloat(shipment.signals?.weather_score || 0).toFixed(2)}</span>
             </div>
+
+            {weather.temp_c !== undefined && (
+              <div className="weather-telemetry" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <span>🌡 {weather.temp_c}°C</span>
+                  <span>💧 {weather.humidity}%</span>
+                  <span>💨 {weather.wind_kph} km/h</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  <span>👁 {weather.visibility_km} km vis</span>
+                  {weather.rain_1h_mm > 0 && <span style={{ color: '#3b82f6' }}>🌧 {weather.rain_1h_mm}mm/h</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="onyx-card">
             <div className="onyx-card-title">Operations</div>
-            <div className="onyx-btn-row">
-              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>🌩 Simulate Storm</button>
-              <button className="onyx-btn btn-cyan" onClick={() => fetch(`${API}/pipeline`)}>🔁 Reroute</button>
+            <div className="onyx-btn-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>🌩 Storm</button>
+              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-accident`, { method: 'POST' })}>🚗 Accident</button>
+              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-roadblock`, { method: 'POST' })}>🚧 Roadblock</button>
+              <button className="onyx-btn btn-cyan" onClick={() => fetch(`${API}/simulate-parade`, { method: 'POST' })}>🪩 Parade</button>
+              <button className="onyx-btn btn-cyan" onClick={() => fetch(`${API}/simulate-construction`, { method: 'POST' })}>🏗️ Const.</button>
+              <button className="onyx-btn btn-ghost" style={{ width: '100%' }} onClick={() => fetch(`${API}/pipeline`)}>⚡ Sync AI Pipeline</button>
             </div>
           </div>
 

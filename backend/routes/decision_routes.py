@@ -159,10 +159,22 @@ def get_reroute(shipment_id: str):
         url = (
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
-            f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=2&travelMode=truck"
+            f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=5&travelMode=truck"
+            f"&alternativeType=anyRoute&minDeviationDistance=1000&minDeviationTime=60"
         )
         resp   = requests.get(url, timeout=10).json()
         routes = resp.get("routes", [])
+        
+        if len(routes) == 0:
+            print(f"⚠️  TomTom returned 0 routes. Retrying fallback...")
+            fallback_url = (
+                f"https://api.tomtom.com/routing/1/calculateRoute"
+                f"/{origin}:{dest}/json"
+                f"?key={TOMTOM_KEY}&traffic=true&travelMode=truck"
+            )
+            resp   = requests.get(fallback_url, timeout=10).json()
+            routes = resp.get("routes", [])
+
         print(f"DEBUG TomTom /reroute — got {len(routes)} route(s)")
     except Exception as e:
         print(f"⚠️  TomTom routing call failed: {e}")

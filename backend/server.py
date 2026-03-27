@@ -9,6 +9,7 @@ from simulator import run_simulation
 from routes.main_routes          import router as main_router, start_shipment
 from routes.decision_routes      import router as decision_router
 from routes.orchestration_routes import router as orchestration_router
+from routes.intel_routes         import router as intel_router
 from websocket                   import router as websocket_router
 
 # =========================
@@ -54,6 +55,7 @@ app.add_middleware(
 app.include_router(main_router,          prefix="", tags=["shipment"])
 app.include_router(decision_router,      prefix="", tags=["decision"])
 app.include_router(orchestration_router, prefix="", tags=["orchestration"])
+app.include_router(intel_router,         prefix="", tags=["intelligence"])
 app.include_router(websocket_router,     prefix="", tags=["websocket"])
 
 if __name__ == "__main__":
