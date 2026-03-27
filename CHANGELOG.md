@@ -62,3 +62,28 @@
 
 ### Issues Faced
 - Person 2's endpoint was GET /risk not POST /predict — fixed by reading their actual code
+
+## 23:10
+
+### Features Added
+- Completely replaced in-memory single-vehicle prototype with a multi-tenant `live_store.py` (Redis mock).
+- Built SQLite `database.py` with `shipments` and `audit_logs` persistence for all AI intelligence decisions.
+- Subbed heavy API polling loops entirely out for native WebSockets `ws://{host}/ws/{shipment_id}`.
+- Refactored `orchestration_routes.py` pipeline runs to `BackgroundTasks` avoiding application stalls.
+- Updated `App.jsx` React frontend to seamlessly ingest continuous WebSocket broadcast streams.
+
+### Files Modified
+- backend/state.py (Deleted)
+- backend/database.py (Created)
+- backend/live_store.py (Created)
+- backend/websocket.py (Created)
+- backend/simulator.py
+- backend/server.py
+- backend/routes/main_routes.py
+- backend/routes/decision_routes.py
+- backend/routes/orchestration_routes.py
+- frontend/src/App.jsx
+- progress/2.md (Created)
+
+### Issues Faced
+- Leaflet re-rendering errors caused by React polling interval overriding native state. Resolved gracefully by switching purely to WebSocket push events preventing double-mutations.
