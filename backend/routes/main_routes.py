@@ -17,6 +17,7 @@ TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY")
 if not TOMTOM_API_KEY:
     raise ValueError("❌ TOMTOM_API_KEY not found in .env file")
 
+
 def get_route(origin: str, destination: str):
     url = (
         f"https://api.tomtom.com/routing/1/calculateRoute"
@@ -28,18 +29,27 @@ def get_route(origin: str, destination: str):
         if res.status_code != 200:
             print("❌ API Error:", res.text)
             return []
-        data   = res.json()
+        data = res.json()
         points = data["routes"][0]["legs"][0]["points"]
         return [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
     except Exception as e:
         print("❌ Exception in get_route:", e)
         return []
 
+
+from pydantic import BaseModel
+from typing import Optional
+
+
+class StartRequest(BaseModel):
+    origin: Optional[str] = "9.9312,76.2673"
+    destination: Optional[str] = "12.9716,77.5946"
+
+
 @router.post("/shipments/{shipment_id}/start")
-def start_shipment(shipment_id: str):
-    # Hardcoded origin/destination for demo, but mapped to shipment_id
-    origin      = "9.9312,76.2673"
-    destination = "12.9716,77.5946"
+def start_shipment(shipment_id: str, req: StartRequest = None):
+    origin = req.origin if req else "9.9312,76.2673"
+    destination = req.destination if req else "12.9716,77.5946"
 
     route = get_route(origin, destination)
     if not route:
@@ -53,23 +63,21 @@ def start_shipment(shipment_id: str):
     shipment["risk_score"] = 0.0
     shipment["alerts"] = []
     shipment["reroute_options"] = []
-    
+
     set_shipment(shipment_id, shipment)
-    
+
     # Save to SQLite
     try:
         save_shipment(shipment)
     except Exception as e:
         print(f"DB Save Error: {e}")
 
-    return {
-        "message":      f"✅ Shipment {shipment_id} started",
-        "total_points": len(route)
-    }
+    return {"message": f"✅ Shipment {shipment_id} started", "total_points": len(route)}
+
 
 @router.post("/shipments/{shipment_id}/traffic")
 def traffic_spike(shipment_id: str):
     shipment = get_shipment(shipment_id)
     shipment["signals"]["traffic_delay"] = 60
     set_shipment(shipment_id, shipment)
-    return {"message": "Traffic spike signal set"}
+    return {"message": "Traffic spike signal set"}

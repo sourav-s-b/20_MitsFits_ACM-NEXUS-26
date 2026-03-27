@@ -66,6 +66,27 @@ def log_audit_event(shipment_id: str, timestamp: str, event_type: str, risk_scor
     ''', (shipment_id, timestamp, event_type, risk_score, reason))
     conn.commit()
     conn.close()
+def get_audit_history(shipment_id: str) -> list:
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        SELECT timestamp, event_type, risk_score, reason 
+        FROM audit_logs 
+        WHERE shipment_id = ?
+        ORDER BY id DESC
+    ''', (shipment_id,))
+    rows = c.fetchall()
+    conn.close()
+    
+    return [
+        {
+            "timestamp": row[0],
+            "event_type": row[1],
+            "risk_score": row[2],
+            "reason": row[3]
+        }
+        for row in rows
+    ]
 
 # Initialize DB on load
 init_db()

@@ -105,3 +105,54 @@
 
 ### Issues Faced
 - Leaflet re-rendering errors caused by React polling interval overriding native state. Resolved gracefully by switching purely to WebSocket push events preventing double-mutations.
+
+## 23:45
+
+### Features Added
+- Defined precise Person 3 Data Contracts extending beyond live mapping.
+- Added `GET /shipments` to pull overarching active fleet telemetry.
+- Added `GET /shipments/{id}/history` to unlock SQLite delivery logging.
+- Created `POST /login` mock to facilitate React application auth guarding.
+
+### Files Modified
+- backend/database.py
+- backend/routes/main_routes.py
+- progress/3.md (Created)
+
+### Issues Faced
+- Preserving strict REST semantics without breaking prototype logic constraints via dynamic path routing overrides.
+
+## 23:59
+
+### Features Added
+- Validated Person 1's API integration inside `simulator.py` to ensure TomTom and OpenWeatherMap actual data feeds map successfully to the risk models.
+- Entirely overhauled `App.jsx` from a single screen into a Multi-Tab Logistics Dashboard.
+- Built active state-swapping layout with Sidebar `<nav>` mapping logic.
+- Built **Fleet Logistics** tab leveraging new backend multi-tenant data structures via `GET /shipments`.
+- Built **Delivery History** tab visualizing SQLite audit trail via `/shipments/{id}/history`.
+- Built styled CSS dashboard framework in `App.css` complementing existing Leaflet dark-map overlays.
+
+### Files Modified
+- frontend/src/App.jsx
+- frontend/src/App.css
+- progress/4.md (Created)
+
+### Issues Faced
+- `[Errno 10048] address already in use` blocked uvicorn rebooting. Resolved by terminating backend python PID directly via `taskkill`.
+- Juggling WebSocket connections during React tab switching. Avoided disconnection lag by persisting `shipmentId` at the outer parent tree level.
+
+## 00:30
+
+### Features Added
+- Engineered backend capability for strictly dynamic Pydantic models overriding `POST /start` mapping paths entirely.
+- Engineered `ScheduleTab` form injecting new dynamic origin/destination shipment objects universally into the Tomcat map environment.
+- Formulated `AnalyticsTab` logic quantifying cumulative systemic delay vs weather-inflicted impact scoring across multi-tenant fleet clusters.
+- Overlayed aggressive Leaflet `<Circle>` DOM geometry acting as physical Hazard Zone indicators natively above real-time `HIGH RISK` trucking assets on the live tracking panel.
+
+### Files Modified
+- backend/routes/main_routes.py
+- frontend/src/App.jsx
+- progress/5.md (Created)
+
+### Issues Faced
+- Parsing optional FastAPI bodies seamlessly alongside parameter inputs without triggering massive validation errors against existing `server.py` boot functions.
