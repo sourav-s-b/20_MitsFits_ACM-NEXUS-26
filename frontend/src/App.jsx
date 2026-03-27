@@ -244,6 +244,16 @@ export default function App() {
     }
   };
 
+  // ── POST /start (manual fallback) ──
+  const handleStartShipment = async () => {
+    try {
+      await fetch(`${API}/start`, { method: "POST" });
+      // state polling will pick up the new route
+    } catch (e) {
+      console.error("Start shipment error:", e);
+    }
+  };
+
   // ── POST /confirm-reroute ──
   const handleConfirmReroute = async () => {
     if (!selected) return;
@@ -459,6 +469,20 @@ export default function App() {
           {/* Action buttons */}
           <div className="nexus-card">
             <div className="nexus-card-title">Actions</div>
+
+            {/* Row 0: Fallback Start button if there's no route */}
+            {(!shipment.route || shipment.route.length === 0) && (
+              <div className="nexus-btn-row" style={{ marginBottom: 8 }}>
+                <button
+                  id="btn-start"
+                  className="nexus-btn btn-green"
+                  style={{ width: "100%" }}
+                  onClick={handleStartShipment}
+                >
+                  ▶️ Start Tracking (Fallback)
+                </button>
+              </div>
+            )}
 
             {/* Row 1: Storm sim + Pipeline */}
             <div className="nexus-btn-row" style={{ marginBottom: 8 }}>
