@@ -153,7 +153,17 @@ def _local_risk_model(traffic: float, weather: float, hour: int) -> dict:
     }
 
 
-def _rag_lookup(level: str, weather: float, traffic: float, hour: int) -> str:
+def _rag_lookup(level: str, weather: float, traffic: float, hour: int, event_type: str = None) -> str:
+    # Event-specific SOPs
+    if event_type == "accident":
+        return "SOP-ACCIDENT: Major collision reported ahead. Multiple lanes blocked. Immediate diversion required."
+    elif event_type == "parade":
+        return "SOP-PARADE: Local festival crowd causing massive congestion. Rerouting to bypass."
+    elif event_type == "roadblock":
+        return "SOP-ROADBLOCK: Local roadblock/checkpoint detected. Standstill traffic. Alternative route activated."
+    elif event_type == "construction":
+        return "SOP-CONSTRUCT: Unplanned heavy roadwork ahead. Lanes closed. Proceed via alternate route."
+
     # Night-time / Storm (SOP-Alpha)
     if weather > 0.7 and (hour >= 22 or hour <= 5):
         return "SOP-ALPHA: Night-time storm protocol active. Extreme hydroplaning risk + reduced visibility. Mandatory reroute suggested to maintain shipment integrity."
@@ -166,7 +176,6 @@ def _rag_lookup(level: str, weather: float, traffic: float, hour: int) -> str:
     if level == "CRITICAL":
         return "SOP-DELTA: Risk threshold exceeded. Execute emergency avoidance maneuver and alert delivery hub."
     return "SOP-001: All corridor conditions nominal. Continuous AI monitoring active."
-
 
 async def get_reroute_options_tomtom(shipment_id: str) -> list:
     shipment = get_shipment(shipment_id)
@@ -182,13 +191,24 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
             f"&traffic=true&maxAlternatives=3&travelMode=truck"
-            f"&avoid=unpavedRoads&alternativeType=anyRoute&minDeviationDistance=5000"
+            f"&alternativeType=anyRoute&minDeviationDistance=1000"
         )
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=10.0)
             data = resp.json()
 
         routes = data.get("routes", [])
+        if not routes:
+            fallback_url = (
+                f"https://api.tomtom.com/routing/1/calculateRoute"
+                f"/{origin}:{dest}/json"
+                f"?key={TOMTOM_KEY}&traffic=true&travelMode=truck"
+            )
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(fallback_url, timeout=10.0)
+                data = resp.json()
+            routes = data.get("routes", [])
+
         if not routes:
             return []
 
@@ -220,7 +240,7 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
 # ══════════════════════════════════════════════════════
 
 
-async def run_pipeline(shipment_id: str, override_weather_score: float = None):
+async def run_pipeline(shipment_id: str, override_weather_score: float = None, event_type: str = None):
     shipment = get_shipment(shipment_id)
     loc = shipment["current_location"]
 
@@ -235,6 +255,7 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None):
     else:
         shipment["signals"]["weather_score"] = weather_data["score"]
 
+
     set_shipment(shipment_id, shipment)
 
     p2_result = call_person2(shipment_id, loc["lat"], loc["lon"])
@@ -243,6 +264,17 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None):
     risk = p2_result["risk"]
     level = p2_result["level"]
     reason = p2_result["reason"]
+
+    if event_type:
+        risk = max(risk, 0.85)
+        level = "CRITICAL"
+        reason = _rag_lookup(
+            level=level, 
+            weather=shipment["signals"]["weather_score"], 
+            traffic=0.9, 
+            hour=12, 
+            event_type=event_type
+        )
 
     shipment["risk_score"] = risk
     shipment["ai_reason"] = reason
@@ -296,6 +328,31 @@ def simulate_storm(shipment_id: str, background_tasks: BackgroundTasks):
         "triggered_by": "simulate-storm",
         "message": "🌩 Storm simulation started in background",
     }
+
+
+def _trigger_event(shipment_id: str, event_type: str, background_tasks: BackgroundTasks):
+    shipment = get_shipment(shipment_id)
+    shipment["signals"]["traffic_delay"] = 120  # Force severe delay
+    set_shipment(shipment_id, shipment)
+    background_tasks.add_task(run_pipeline, shipment_id, None, event_type)
+    return {"status": "processing", "message": f"{event_type.title()} simulation started"}
+
+
+@router.post("/shipments/{shipment_id}/simulate-accident")
+def simulate_accident(shipment_id: str, background_tasks: BackgroundTasks):
+    return _trigger_event(shipment_id, "accident", background_tasks)
+
+@router.post("/shipments/{shipment_id}/simulate-parade")
+def simulate_parade(shipment_id: str, background_tasks: BackgroundTasks):
+    return _trigger_event(shipment_id, "parade", background_tasks)
+
+@router.post("/shipments/{shipment_id}/simulate-roadblock")
+def simulate_roadblock(shipment_id: str, background_tasks: BackgroundTasks):
+    return _trigger_event(shipment_id, "roadblock", background_tasks)
+
+@router.post("/shipments/{shipment_id}/simulate-construction")
+def simulate_construction(shipment_id: str, background_tasks: BackgroundTasks):
+    return _trigger_event(shipment_id, "construction", background_tasks)
 
 
 @router.get("/shipments/{shipment_id}/pipeline")

@@ -574,9 +574,13 @@ export default function App() {
 
           <div className="nexus-card">
             <div className="nexus-card-title">Operations</div>
-            <div className="nexus-btn-row">
-              <button className="nexus-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>🌩 Simulate Storm</button>
-              <button className="nexus-btn btn-cyan" onClick={() => fetch(`${API}/pipeline`)}>⚡ Run Pipeline</button>
+            <div className="nexus-btn-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
+              <button className="nexus-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>🌩 Storm</button>
+              <button className="nexus-btn btn-warning" onClick={() => fetch(`${API}/simulate-accident`, { method: 'POST' })}>🚗 Accident</button>
+              <button className="nexus-btn btn-warning" onClick={() => fetch(`${API}/simulate-roadblock`, { method: 'POST' })}>🚧 Roadblock</button>
+              <button className="nexus-btn btn-cyan" onClick={() => fetch(`${API}/simulate-parade`, { method: 'POST' })}>🪩 Parade</button>
+              <button className="nexus-btn btn-cyan" onClick={() => fetch(`${API}/simulate-construction`, { method: 'POST' })}>🏗️ Const.</button>
+              <button className="nexus-btn" style={{ width: '100%' }} onClick={() => fetch(`${API}/pipeline`)}>⚡ Sync AI Pipeline</button>
             </div>
           </div>
 
