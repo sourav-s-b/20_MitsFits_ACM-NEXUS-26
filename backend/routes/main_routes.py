@@ -85,3 +85,42 @@ def traffic_spike(shipment_id: str):
     shipment["signals"]["traffic_delay"] = 60
     set_shipment(shipment_id, shipment)
     return {"message": "Traffic spike signal set"}
+
+# =========================
+# RESTORED MULTI-TENANT & DASHBOARD APIS 
+# (These were deleted during merge)
+# =========================
+@router.get("/shipments")
+def get_all_shipments():
+    from live_store import get_all_active_shipments
+    shipments = get_all_active_shipments()
+    return [
+        {
+            "shipment_id": s["shipment_id"],
+            "current_location": s.get("current_location"),
+            "status": s.get("status", "SAFE"),
+            "risk_score": s.get("risk_score", 0.0),
+            "eta": s.get("eta"),
+            "signals": s.get("signals", {})
+        } for s in shipments
+    ]
+
+@router.get("/shipments/{shipment_id}/history")
+def get_shipment_history(shipment_id: str):
+    from database import get_audit_history
+    history = get_audit_history(shipment_id)
+    return {"shipment_id": shipment_id, "history": history}
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@router.post("/login")
+def mock_login(req: LoginRequest):
+    if req.password == "password":
+        return {
+            "token": "mock-jwt-token-12345",
+            "role": "Global Dispatcher",
+            "name": "Nexus Admin"
+        }
+    return {"error": "Invalid credentials", "status": 401}
