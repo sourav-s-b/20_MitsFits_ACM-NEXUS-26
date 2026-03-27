@@ -11,5 +11,8 @@ shipment = {
         "weather_score": 0
     },
     "risk_score": 0,
-    "status": "SAFE"
+    "status": "SAFE",
+    "active_route": "A",
+    "alerts": [],
+    "reroute_options": []
 }
