@@ -3,19 +3,19 @@ orchestration_routes.py
 =======================
 Person 3 — Integration Orchestrator
 
-Responsibilities:
-  1. Fetch live weather from OpenWeatherMap
-  2. Combine with traffic signals (from state / Person 1)
-  3. Normalise everything to 0.0–1.0 features
-  4. Call Person 2's /predict endpoint (with local fallback)
-  5. If risk > 0.7, auto-fetch TomTom shadow route
-  6. Update shared state with the full "Strategic Payload"
-  7. Expose /pipeline and /simulate-storm for Person 4's UI
+Person 2 API contract (risk-engine running on :8001):
+  GET  /risk?lat=&lon=   → {traffic_delay, weather_score, time_risk, risk_score, status}
+  GET  /sop?status=      → {recommendations: [{id, trigger, action, source}]}
+  POST /event            → inject {type: traffic_spike|storm|clear}
+  GET  /health           → {status: running}
+
+Person 2 status values: "SAFE" | "MODERATE" | "HIGH RISK"
 
 Endpoint contract for Person 4:
   POST /simulate-storm   → triggers full pipeline with weather=1.0
-  GET  /pipeline         → runs full pipeline on current state
+  GET  /pipeline         → runs full pipeline on current live state
   GET  /weather          → current weather telemetry block
+  GET  /ai-status        → latest AI inference result
 """
 
 from fastapi import APIRouter
@@ -103,100 +103,107 @@ def normalize_traffic(delay_minutes: float) -> float:
     return round(min(delay_minutes / 60.0, 1.0), 3)
 
 
-def call_person2_predict(traffic_norm: float, weather_norm: float, hour: int) -> dict:
+def call_person2(lat: float, lon: float) -> dict:
     """
-    POST to Person 2's FastAPI /predict endpoint.
-    Returns {risk, level, reason}.
-    Falls back to local rule-based model if Person 2 is not running.
+    Call Person 2's risk engine at GET /risk?lat=&lon=.
+    Person 2's response shape:
+      {traffic_delay, weather_score, time_risk, risk_score, status}
+    where status ∈ {"SAFE", "MODERATE", "HIGH RISK"}
+
+    Also queries GET /sop?status= to get the RAG action string.
+    Falls back to local model if Person 2 is not running.
     """
-    payload = {
-        "traffic": traffic_norm,
-        "weather": weather_norm,
-        "hour":    hour,
-    }
     try:
-        resp = requests.post(
-            f"{PERSON2_URL}/predict",
-            json=payload,
-            timeout=4,
+        # 1. Get risk score from Person 2
+        risk_resp = requests.get(
+            f"{PERSON2_URL}/risk",
+            params={"lat": lat, "lon": lon},
+            timeout=5,
+        )
+        if risk_resp.status_code != 200:
+            raise ValueError(f"Person 2 /risk returned {risk_resp.status_code}")
+
+        p2 = risk_resp.json()
+        risk   = p2["risk_score"]
+        status = p2["status"]       # "SAFE" | "MODERATE" | "HIGH RISK"
+        print(f"✅ Person 2 /risk → risk={risk}, status={status}")
+
+        # 2. Sync Person 2's traffic/weather back into our signals
+        shipment["signals"]["traffic_delay"] = p2.get("traffic_delay", shipment["signals"]["traffic_delay"])
+        shipment["signals"]["weather_score"]  = p2.get("weather_score",  shipment["signals"]["weather_score"])
+
+        # 3. Fetch SOP reason from Person 2's RAG endpoint
+        reason = _fetch_sop_reason(status, p2.get("weather_score", 0))
+
+        # 4. Map Person 2 status → our level labels
+        level = {"HIGH RISK": "CRITICAL", "MODERATE": "MODERATE", "SAFE": "SAFE"}.get(status, "SAFE")
+
+        return {"risk": risk, "level": level, "reason": reason, "source": "person2"}
+
+    except Exception as e:
+        print(f"⚠️  Person 2 unreachable ({e}) — using local fallback")
+        hour = datetime.now(timezone.utc).hour
+        traffic_norm = normalize_traffic(shipment["signals"]["traffic_delay"])
+        weather_norm = shipment["signals"]["weather_score"]
+        return _local_risk_model(traffic_norm, weather_norm, hour)
+
+
+def _fetch_sop_reason(status: str, weather_score: float) -> str:
+    """
+    Call Person 2's GET /sop?status= to get the RAG action text.
+    Falls back to local knowledge base on failure.
+    """
+    try:
+        resp = requests.get(
+            f"{PERSON2_URL}/sop",
+            params={"status": status},
+            timeout=3,
         )
         if resp.status_code == 200:
-            data = resp.json()
-            print(f"✅ Person 2 responded: risk={data.get('risk')}")
-            return data
-        else:
-            print(f"⚠️  Person 2 returned {resp.status_code} — using local fallback")
+            recs = resp.json().get("recommendations", [])
+            if recs:
+                # Return the most relevant SOP action
+                sop = recs[0]
+                return f"{sop['id']}: {sop['action']} [{sop['source']}]"
     except Exception as e:
-        print(f"⚠️  Person 2 unreachable ({e}) — using local risk model")
+        print(f"⚠️  /sop fetch failed: {e}")
 
-    return _local_risk_model(traffic_norm, weather_norm, hour)
+    # Local RAG fallback using our own knowledge base
+    hour = datetime.now(timezone.utc).hour
+    traffic_norm = normalize_traffic(shipment["signals"]["traffic_delay"])
+    return _rag_lookup(status, weather_score, traffic_norm, hour)
 
 
 def _local_risk_model(traffic: float, weather: float, hour: int) -> dict:
     """
-    Rule-based fallback risk model (mirrors what Person 2 will implement).
-    Used when Person 2's service is not yet running.
+    Rule-based fallback — used when Person 2's service is not running.
+    Mirrors Person 2's weighted formula: traffic*0.5 + weather*0.35 + time*0.15
     """
-    # Night-time penalty (22:00–05:00)
-    night_penalty = 0.15 if (hour >= 22 or hour <= 5) else 0.0
+    time_risk = 0.15 if (hour >= 22 or hour <= 5) else (0.3 if (8 <= hour <= 10 or 17 <= hour <= 20) else 0.0)
+    risk = round(min((traffic * 0.5) + (weather * 0.35) + (time_risk * 0.15), 1.0), 3)
 
-    risk = (traffic * 0.5) + (weather * 0.4) + night_penalty
-    risk = round(min(risk, 1.0), 3)
+    if risk >= 0.65:   level = "CRITICAL"
+    elif risk >= 0.35: level = "MODERATE"
+    else:              level = "SAFE"
 
-    if risk >= 0.75:
-        level  = "CRITICAL"
-        reason = _rag_lookup("CRITICAL", weather, traffic, hour)
-    elif risk >= 0.5:
-        level  = "HIGH"
-        reason = _rag_lookup("HIGH", weather, traffic, hour)
-    elif risk >= 0.3:
-        level  = "MODERATE"
-        reason = _rag_lookup("MODERATE", weather, traffic, hour)
-    else:
-        level  = "SAFE"
-        reason = "All corridor conditions nominal. No action required."
-
-    return {"risk": risk, "level": level, "reason": reason}
+    reason = _rag_lookup(level, weather, traffic, hour)
+    return {"risk": risk, "level": level, "reason": reason, "source": "local_fallback"}
 
 
 def _rag_lookup(level: str, weather: float, traffic: float, hour: int) -> str:
     """
-    Lightweight RAG-style knowledge base.
-    Returns an SOP string matching the current risk scenario.
-    Mirrors the knowledge.json lookup Person 2 will implement.
+    Local knowledge base — mirrors Person 2's knowledge.json.
+    Returns the most relevant SOP string for the current conditions.
     """
-    knowledge = [
-        {
-            "condition": lambda w, t, h: w > 0.7 and (h >= 22 or h <= 5),
-            "sop": "SOP-09: Night-time storm protocol active. Extreme hydroplaning risk. Mandatory reroute via NH-48 bypass.",
-        },
-        {
-            "condition": lambda w, t, h: w > 0.7,
-            "sop": "SOP-07: Severe weather on corridor. Reduce speed to 40 km/h, activate hazard lights, seek shelter if visibility < 100m.",
-        },
-        {
-            "condition": lambda w, t, h: t > 0.7 and w < 0.4,
-            "sop": "SOP-03: Heavy traffic congestion detected. Suggest alternate route via Ring Road to avoid 55-min delay.",
-        },
-        {
-            "condition": lambda w, t, h: t > 0.5 and w > 0.5,
-            "sop": "SOP-11: Combined traffic-weather risk. Driver advisory: increase following distance, reduce convoy speed.",
-        },
-        {
-            "condition": lambda w, t, h: h >= 22 or h <= 5,
-            "sop": "SOP-02: Night driving protocol. Headlight check required. Fatigue monitoring active.",
-        },
-        {
-            "condition": lambda w, t, h: True,  # default
-            "sop": f"SOP-01: Elevated {level} risk detected. Monitor corridor conditions. Standby for reroute.",
-        },
-    ]
-
-    for entry in knowledge:
-        if entry["condition"](weather, traffic, hour):
-            return entry["sop"]
-
-    return f"{level} risk on current route. Suggest caution."
+    if weather > 0.7 and (hour >= 22 or hour <= 5):
+        return "SOP-09: Night-time storm protocol active. Extreme hydroplaning risk. Mandatory reroute via NH-48 bypass."
+    if weather > 0.7:
+        return "SOP-07: Severe weather on corridor. Reduce speed 40 km/h, hazard lights on, seek shelter if vis < 100m."
+    if traffic > 0.7:
+        return "SOP-001: Switch to Route B via NH-66. Notify warehouse coordinator. [Logistics SOP v2.3]"
+    if level in ("MODERATE", "CRITICAL"):
+        return "SOP-002: Monitor for next 10 min. Pre-alert destination hub. [Logistics SOP v2.3]"
+    return "SOP-001: All corridor conditions nominal. Monitoring active."
 
 
 def get_shadow_route_tomtom() -> list:
@@ -264,15 +271,16 @@ def run_pipeline(override_weather_score: float = None) -> dict:
     else:
         shipment["signals"]["weather_score"] = weather_data["score"]
 
-    # Step 2 — Normalise traffic
+    # Step 2 — Normalise traffic (used by local fallback)
     traffic_norm  = normalize_traffic(shipment["signals"]["traffic_delay"])
     weather_norm  = shipment["signals"]["weather_score"]
 
-    # Step 3 — Call Person 2
-    p2_result = call_person2_predict(traffic_norm, weather_norm, hour)
+    # Step 3 — Call Person 2's risk engine
+    p2_result = call_person2(loc["lat"], loc["lon"])
     risk      = p2_result["risk"]
     level     = p2_result["level"]
     reason    = p2_result["reason"]
+    print(f"Pipeline source: {p2_result.get('source', 'unknown')}")
 
     # Step 4 — Update shipment state
     shipment["risk_score"] = risk
