@@ -1,173 +1,129 @@
-import { useState } from "react";
-import { MapContainer, TileLayer, Marker, Polyline } from "react-leaflet";
+import { useState, useEffect } from "react";
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
+// Helper component to auto-center map when truck moves
+function RecenterMap({ coords }) {
+  const map = useMap();
+  useEffect(() => {
+    if (coords) map.setView([coords.lat, coords.lon], map.getZoom());
+  }, [coords]);
+  return null;
+}
+
 function App() {
-  const route = [
-    [9.9312, 76.2673],
-    [10.5, 76.8],
-    [11.5, 77.5],
-    [12.9716, 77.5946],
-  ];
+  const [shipment, setShipment] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const altRoute = [
-    [9.9312, 76.2673],
-    [10.2, 76.5],
-    [11.2, 77.2],
-    [12.9716, 77.5946],
-  ];
+  // 1. API Polling: Fetch state every 3 seconds 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8000/state");
+        const data = await response.json();
+        setShipment(data);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching shipment state:", err);
+      }
+    };
 
-  const [showAlt, setShowAlt] = useState(false);
-  const [risk, setRisk] = useState(0.2);
-  const [timeline, setTimeline] = useState([
-    "10:00 - Shipment started",
-  ]);
+    fetchData(); // Initial fetch
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleEvent = () => {
-    setRisk(0.8);
-    setTimeline((prev) => [
-      ...prev,
-      "13:15 - Traffic spike detected",
-    ]);
+  // 2. Button Action: Trigger Event
+  const handleTriggerEvent = async () => {
+    await fetch("http://127.0.0.1:8000/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "traffic_spike" }),
+    });
   };
 
-  const handleReroute = () => {
-    setShowAlt(true);
-    setTimeline((prev) => [
-      ...prev,
-      "13:20 - Reroute triggered",
-    ]);
+  // 3. Button Action: Get and Confirm Reroute
+  const handleReroute = async () => {
+    // First, ask Decision Engine for options
+    const res = await fetch("http://127.0.0.1:8000/reroute");
+    const data = await res.json();
+    
+    if (data.options && data.options.length > 0) {
+      // For demo, we automatically confirm the first alternative
+      await fetch("http://127.0.0.1:8000/confirm-reroute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ route_id: data.options[0].id }),
+      });
+    }
   };
+
+  if (loading || !shipment) return <div style={{color: "white", padding: "20px"}}>Loading Live Shipment Data...</div>;
+
+  // Convert TomTom points {lat, lon} to Leaflet [lat, lon] arrays 
+  const mainRoutePoints = shipment.route?.map(p => [p.lat, p.lon]) || [];
+  const currentPos = [shipment.current_location.lat, shipment.current_location.lon];
 
   const getRiskColor = () => {
-    if (risk > 0.6) return "red";
-    if (risk > 0.4) return "orange";
-    return "green";
-  };
-
-  const getRiskText = () => {
-    if (risk > 0.6) return "HIGH RISK";
-    if (risk > 0.4) return "MEDIUM";
-    return "SAFE";
+    if (shipment.risk_score > 0.6) return "#f87171"; // Red
+    if (shipment.risk_score > 0.4) return "#fbbf24"; // Orange
+    return "#34d399"; // Green
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "Arial" }}>
-
-      {/* TOP SECTION */}
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#020617" }}>
       <div style={{ display: "flex", flex: 1 }}>
-
-        {/* MAP */}
+        
+        {/* MAP SECTION */}
         <div style={{ width: "70%" }}>
-          <MapContainer center={route[0]} zoom={6} style={{ height: "100%" }}>
+          <MapContainer center={currentPos} zoom={7} style={{ height: "100%" }}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            <Polyline positions={route} color="blue" />
-            {showAlt && <Polyline positions={altRoute} color="red" />}
-            <Marker position={route[0]} />
+            
+            {/* Draw the full planned route */}
+            {mainRoutePoints.length > 0 && <Polyline positions={mainRoutePoints} color="#3b82f6" weight={4} opacity={0.6} />}
+            
+            {/* Truck Marker */}
+            <Marker position={currentPos} />
+            <RecenterMap coords={shipment.current_location} />
           </MapContainer>
         </div>
 
-        {/* RIGHT PANEL */}
-        <div style={{
-          width: "30%",
-          padding: "20px",
-          background: "#0f172a",
-          color: "#e2e8f0",
-          display: "flex",
-          flexDirection: "column",
-          gap: "20px"
-        }}>
-
-          {/* Shipment Card */}
-          <div style={{ background: "#1e293b", padding: "15px", borderRadius: "10px" }}>
-            <h3>Shipment</h3>
-            <p><b>ID:</b> SHP001</p>
-            <p><b>From:</b> Kochi</p>
-            <p><b>To:</b> Bangalore</p>
-            <p><b>ETA:</b> 180 mins</p>
+        {/* SIDE PANEL */}
+        <div style={{ width: "30%", padding: "20px", color: "#e2e8f0", overflowY: "auto" }}>
+          <h2 style={{ color: "#fff" }}>Live Monitor</h2>
+          
+          <div style={{ background: "#1e293b", padding: "15px", borderRadius: "10px", marginBottom: "15px" }}>
+            <p><b>ID:</b> {shipment.shipment_id}</p>
+            <p><b>Status:</b> <span style={{ color: getRiskColor(), fontWeight: "bold" }}>{shipment.status}</span></p>
+            <p><b>Risk Score:</b> {(shipment.risk_score * 100).toFixed(0)}%</p>
           </div>
 
-          {/* Risk Card */}
-          <div style={{ background: "#1e293b", padding: "15px", borderRadius: "10px" }}>
-            <h3>Risk Status</h3>
-            <p style={{
-              color: getRiskColor(),
-              fontSize: "18px",
-              fontWeight: "bold"
-            }}>
-              {getRiskText()}
-            </p>
+          <div style={{ background: "#1e293b", padding: "15px", borderRadius: "10px", marginBottom: "15px" }}>
+            <h3>Signals</h3>
+            <p>Traffic Delay: {shipment.signals.traffic_delay}m</p>
+            <p>Weather Score: {shipment.signals.weather_score}</p>
           </div>
 
-          {/* Alerts */}
-          <div style={{ background: "#1e293b", padding: "15px", borderRadius: "10px" }}>
-            <h3>Alerts</h3>
-            {risk > 0.6 ? (
-              <p style={{ color: "#f87171" }}>⚠ Traffic congestion ahead</p>
-            ) : (
-              <p style={{ color: "#94a3b8" }}>No alerts</p>
-            )}
-          </div>
-
-          {/* Buttons */}
           <div style={{ display: "flex", gap: "10px" }}>
-            <button
-              onClick={handleEvent}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: "8px",
-                border: "none",
-                background: "#f59e0b",
-                color: "#000",
-                fontWeight: "bold",
-                cursor: "pointer"
-              }}
-            >
-              Trigger Event
-            </button>
-
-            <button
-              onClick={handleReroute}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: "8px",
-                border: "none",
-                background: "#22c55e",
-                color: "#000",
-                fontWeight: "bold",
-                cursor: "pointer"
-              }}
-            >
-              REROUTE
-            </button>
+            <button onClick={handleTriggerEvent} style={btnStyle("#f59e0b")}>Inject Risk</button>
+            <button onClick={handleReroute} style={btnStyle("#22c55e")}>Reroute</button>
           </div>
 
+          <h3 style={{ marginTop: "20px" }}>Active Alerts</h3>
+          {shipment.alerts?.map((alert, i) => (
+            <div key={i} style={{ fontSize: "0.8rem", borderLeft: `3px solid ${getRiskColor()}`, paddingLeft: "10px", marginBottom: "10px" }}>
+              [{alert.timestamp}] {alert.reason}
+            </div>
+          ))}
         </div>
       </div>
-
-      {/* TIMELINE */}
-      <div style={{
-        height: "160px",
-        background: "#020617",
-        color: "#e2e8f0",
-        padding: "15px",
-        overflowY: "auto"
-      }}>
-        <h3 style={{ marginBottom: "10px" }}>Timeline</h3>
-
-        {timeline.map((item, index) => (
-          <div key={index} style={{
-            padding: "6px 0",
-            borderBottom: "1px solid #1e293b"
-          }}>
-            {item}
-          </div>
-        ))}
-      </div>
-
     </div>
   );
 }
+
+const btnStyle = (bg) => ({
+  flex: 1, padding: "12px", borderRadius: "8px", border: "none",
+  background: bg, color: "#000", fontWeight: "bold", cursor: "pointer"
+});
+
 export default App;

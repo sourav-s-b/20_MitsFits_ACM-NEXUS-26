@@ -7,6 +7,13 @@ from dotenv import load_dotenv
 from state import shipment
 from simulator import run_simulation
 
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # =========================
 # LOAD ENV VARIABLES
 # =========================
