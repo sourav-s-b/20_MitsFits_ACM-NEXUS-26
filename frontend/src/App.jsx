@@ -138,10 +138,12 @@ export default function App() {
   const [recommended, setRecommended] = useState(null);
   const [selected, setSelected]       = useState(null);
   const [loading, setLoading]         = useState(true);
+  const [connError, setConnError]     = useState(false);
   const [rerouteLoading, setRerouteLoading]   = useState(false);
   const [confirmLoading, setConfirmLoading]   = useState(false);
   const [stormLoading, setStormLoading]       = useState(false);
   const [pipelineLoading, setPipelineLoading] = useState(false);
+  const started = useRef(false);
 
   // ── Poll /state every 3 s ──
   useEffect(() => {
@@ -150,7 +152,16 @@ export default function App() {
         const res  = await fetch(`${API}/state`);
         const data = await res.json();
         setShipment(data);
+        setConnError(false);
         setLoading(false);
+
+        // Auto-start shipment on first load if no route yet
+        if (!started.current && (!data.route || data.route.length === 0)) {
+          started.current = true;
+          console.log("Auto-starting shipment…");
+          fetch(`${API}/start`, { method: "POST" }).catch(console.error);
+        }
+
         // If state now has reroute options (from pipeline), show them
         if (data.reroute_options?.length > 0 && reroutes.length === 0) {
           setReroutes(data.reroute_options);
@@ -159,10 +170,21 @@ export default function App() {
         }
       } catch (e) {
         console.error("State fetch error:", e);
+        setConnError(true);
       }
     };
     fetchState();
     const id = setInterval(fetchState, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ── Auto pipeline poll every 30 s (keeps risk fresh) ──
+  useEffect(() => {
+    const autoPipeline = async () => {
+      try { await fetch(`${API}/pipeline`); }
+      catch (e) { /* silent — backend may still be starting */ }
+    };
+    const id = setInterval(autoPipeline, 30000);
     return () => clearInterval(id);
   }, []);
 
@@ -249,6 +271,17 @@ export default function App() {
     setSelected(null);
     setRecommended(null);
   };
+
+  if (connError) {
+    return (
+      <div className="nexus-loading">
+        <div style={{ fontSize: 32, marginBottom: 8 }}>⚠️</div>
+        <p style={{ color: "var(--accent-red)", fontWeight: 600 }}>Cannot connect to backend</p>
+        <p style={{ fontSize: 13, marginTop: 4 }}>Make sure the backend is running on port 8000</p>
+        <code style={{ marginTop: 12, fontSize: 12, color: "var(--text-muted)" }}>cd backend && uvicorn server:app --reload</code>
+      </div>
+    );
+  }
 
   if (loading || !shipment) {
     return (

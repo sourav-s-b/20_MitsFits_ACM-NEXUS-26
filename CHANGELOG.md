@@ -42,3 +42,23 @@
 
 ### Issues Faced
 - None explicitly stated
+
+## 22:32
+
+### Features Added
+- Auto-start shipment on backend boot (lifespan hook in server.py)
+- Auto-pipeline poll every 30s (frontend keeps risk fresh automatically)
+- Connection error screen if backend is unreachable
+- Wired Person 2's real `/risk?lat=&lon=` and `/sop?status=` endpoints
+- Created `risk-engine/.env` with shared API keys (OWM_KEY, TOMTOM_KEY)
+- Progress file added to `/progress/1.md`
+
+### Files Modified
+- backend/server.py
+- backend/routes/orchestration_routes.py
+- frontend/src/App.jsx
+- risk-engine/.env (created)
+- progress/1.md (created)
+
+### Issues Faced
+- Person 2's endpoint was GET /risk not POST /predict — fixed by reading their actual code
