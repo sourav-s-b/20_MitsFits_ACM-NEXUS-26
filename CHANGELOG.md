@@ -138,3 +138,20 @@
 
 ### Issues Faced
 - Parsing optional FastAPI bodies seamlessly alongside parameter inputs without triggering massive validation errors against existing `server.py` boot functions.
+
+## 01:00
+
+### Features Added
+- Engineered globally lifted `fleet` state directly into `App.jsx`, bridging React rendering with the `GET /shipments` map.
+- Map layer now simultaneously tracks infinite active trucks operating concurrently across different spatial grids.
+- Patched destination synchronization bug inside `main_routes.py` allowing custom routing models to actually map to requested goals instead of Bangalore.
+- Cleansed TomTom routing APIs parsing strict formats (`lat`, `lon` instead of `latitude`, `longitude`) inside `decision_routes.py` to prevent indexing resets explicitly.
+
+### Files Modified
+- backend/routes/main_routes.py
+- backend/routes/decision_routes.py
+- frontend/src/App.jsx
+- progress/6.md (Created)
+
+### Issues Faced
+- Simulator coordinate formatting discrepancies aggressively erasing in-memory dictionaries during JSON to Polyline parsing.

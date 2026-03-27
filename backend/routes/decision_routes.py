@@ -178,7 +178,7 @@ def get_reroute(shipment_id: str):
             "id":              f"route_{chr(65 + i)}",   # route_A, route_B
             "travel_time_min": round(s["travelTimeInSeconds"] / 60),
             "distance_km":     round(s["lengthInMeters"] / 1000, 1),
-            "polyline":        r["legs"][0]["points"],
+            "polyline":        [{"lat": p["latitude"], "lon": p["longitude"]} for p in r["legs"][0]["points"]],
         })
 
     # Recommend the faster option

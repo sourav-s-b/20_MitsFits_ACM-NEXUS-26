@@ -81,13 +81,7 @@ function RiskRing({ score }) {
 // SEPARATE TAB COMPONENTS
 // ==========================================
 
-const FleetTab = ({ onSelectShipment, statusBadgeClass, riskColor }) => {
-  const [fleet, setFleet] = useState([]);
-  
-  useEffect(() => {
-    fetch(`${BASE_URL}/shipments`).then(r => r.json()).then(setFleet).catch(console.error);
-  }, []);
-
+const FleetTab = ({ fleet, onSelectShipment, statusBadgeClass, riskColor }) => {
   return (
     <div className="tab-pane">
       <h1>🚛 Fleet Management</h1>
@@ -244,12 +238,7 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
   );
 };
 
-const AnalyticsTab = ({ BASE_URL }) => {
-  const [fleet, setFleet] = useState([]);
-  useEffect(() => {
-    fetch(`${BASE_URL}/shipments`).then(r => r.json()).then(setFleet).catch(console.error);
-  }, [BASE_URL]);
-
+const AnalyticsTab = ({ fleet }) => {
   const totalDelays = fleet.reduce((acc, s) => acc + (s.signals?.traffic_delay || 0), 0);
   const criticalCount = fleet.filter(s => s.status === "HIGH RISK").length;
   const avgRisk = fleet.length ? (fleet.reduce((acc, s) => acc + s.risk_score, 0) / fleet.length * 100).toFixed(1) : 0;
@@ -320,6 +309,16 @@ export default function App() {
   // APIs based on current selection
   const API = `${BASE_URL}/shipments/${currentShipmentId}`;
   const WS_URL = `${WS_BASE_URL}/ws/${currentShipmentId}`;
+
+  // Global Fleet State (for drawing all trucks and tabs)
+  const [fleet, setFleet] = useState([]);
+
+  useEffect(() => {
+    const fetchFleet = () => fetch(`${BASE_URL}/shipments`).then(r => r.json()).then(setFleet).catch(e => console.error("Fleet fetch error:", e));
+    fetchFleet();
+    const interval = setInterval(fetchFleet, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── WebSocket Connection for Live Map ──
   useEffect(() => {
@@ -475,6 +474,19 @@ export default function App() {
 
             <Marker position={destPos} icon={destIcon} />
             <RecenterMap coords={shipment.current_location} />
+
+            {/* Render secondary fleet trucks on the map */}
+            {fleet.map(f => {
+              if (f.shipment_id === currentShipmentId) return null;
+              if (!f.current_location) return null;
+              return (
+                <Marker key={f.shipment_id} position={[f.current_location.lat, f.current_location.lon]} icon={truckIcon}>
+                  <Tooltip direction="top" offset={[0, -16]}>
+                    <span style={{ fontSize: "11px" }}>{f.shipment_id}: {f.status}</span>
+                  </Tooltip>
+                </Marker>
+              );
+            })}
           </MapContainer>
 
           <div className="map-overlay">
@@ -549,9 +561,9 @@ export default function App() {
       {renderSidebar()}
       <main className="nexus-main-content">
         {activeTab === 'map' && renderMapTab()}
-        {activeTab === 'fleet' && <FleetTab onSelectShipment={handleSelectShipment} statusBadgeClass={statusBadgeClass} riskColor={riskColor} />}
+        {activeTab === 'fleet' && <FleetTab fleet={fleet} onSelectShipment={handleSelectShipment} statusBadgeClass={statusBadgeClass} riskColor={riskColor} />}
         {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} />}
-        {activeTab === 'analytics' && <AnalyticsTab BASE_URL={BASE_URL} />}
+        {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
         {activeTab === 'account' && <AccountTab />}
       </main>

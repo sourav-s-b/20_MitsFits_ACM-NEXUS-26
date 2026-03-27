@@ -55,6 +55,10 @@ def start_shipment(shipment_id: str, req: StartRequest = None):
     shipment["route"] = route
     shipment["route_index"] = 0
     shipment["current_location"] = route[0]
+    shipment["destination"] = {
+        "lat": float(destination.split(",")[0]),
+        "lon": float(destination.split(",")[1])
+    }
     shipment["status"] = "SAFE"
     shipment["risk_score"] = 0.0
     shipment["alerts"] = []
