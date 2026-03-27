@@ -155,3 +155,18 @@
 
 ### Issues Faced
 - Simulator coordinate formatting discrepancies aggressively erasing in-memory dictionaries during JSON to Polyline parsing.
+
+## 01:15
+
+### Features Added
+- Engineered TomTom `calculateRoute` AI overrides to force `maxAlternatives=2` when polling against localized Hazard Zones.
+- Engineered distinct UI vector branching (`altPoints`, `selPoints`, `mainRoutePoints`) visually parsing alternate arrays.
+- Stabilized `confirm_reroute` WebSockets. Backend now explicitly forces Python's garbage collection to destroy `reroute_options` out of the in-memory array post-confirmation.
+
+### Files Modified
+- backend/routes/orchestration_routes.py
+- backend/routes/decision_routes.py
+- progress/7.md (Created)
+
+### Issues Faced
+- WebSockets continuously streaming a ghost instance of `reroute_options` causing immediate UI-redisplay of the "Confirm Reroute" window infinitely every 3 seconds.

@@ -161,7 +161,7 @@ def _rag_lookup(level: str, weather: float, traffic: float, hour: int) -> str:
         return "SOP-002: Monitor for next 10 min. Pre-alert destination hub. [Logistics SOP v2.3]"
     return "SOP-001: All corridor conditions nominal. Monitoring active."
 
-def get_shadow_route_tomtom(shipment_id: str) -> list:
+def get_reroute_options_tomtom(shipment_id: str) -> list:
     shipment = get_shipment(shipment_id)
     loc = shipment["current_location"]
     dst = shipment["destination"]
@@ -172,15 +172,26 @@ def get_shadow_route_tomtom(shipment_id: str) -> list:
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
-            f"&traffic=true&maxAlternatives=1&travelMode=truck"
+            f"&traffic=true&maxAlternatives=2&travelMode=truck"
             f"&avoid=unpavedRoads"
         )
         data   = requests.get(url, timeout=10).json()
         routes = data.get("routes", [])
         if not routes:
             return []
-        points = routes[0]["legs"][0]["points"]
-        return [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
+            
+        options = []
+        for i, r in enumerate(routes[:2]):
+            s = r["summary"]
+            options.append({
+                "id":              f"route_{chr(65 + i)}",
+                "travel_time_min": round(s["travelTimeInSeconds"] / 60),
+                "distance_km":     round(s["lengthInMeters"] / 1000, 1),
+                "polyline":        [{"lat": p["latitude"], "lon": p["longitude"]} for p in r["legs"][0]["points"]],
+                "recommended":     (i==1) if len(routes)>1 else True,
+                "reason":          f"AI-recommended reroute" if i==1 else "Current traffic loaded route"
+            })
+        return options
     except Exception as e:
         return []
 
@@ -222,19 +233,11 @@ def run_pipeline(shipment_id: str, override_weather_score: float = None):
     STATUS_MAP = {"CRITICAL": "HIGH RISK", "HIGH": "HIGH RISK", "MODERATE": "WARNING", "SAFE": "SAFE"}
     shipment["status"] = STATUS_MAP.get(level, "SAFE")
 
-    shadow_route = []
+    shadow_route_options = []
     if risk > 0.7:
-        shadow_route = get_shadow_route_tomtom(shipment_id)
-        if shadow_route:
-            shadow_option = {
-                "id":              "route_shadow",
-                "travel_time_min": None,
-                "distance_km":     None,
-                "polyline":        shadow_route,
-                "reason":          f"AI-recommended safe corridor — {reason[:60]}…",
-                "recommended":     True,
-            }
-            shipment["reroute_options"] = [shadow_option]
+        shadow_route_options = get_reroute_options_tomtom(shipment_id)
+        if shadow_route_options:
+            shipment["reroute_options"] = shadow_route_options
             shipment["shadow_route_ready"] = True
 
     alert = {

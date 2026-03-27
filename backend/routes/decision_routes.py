@@ -233,6 +233,9 @@ def confirm_reroute(shipment_id: str, selection: RouteSelection):
         "event_type": "reroute_confirmed",
     })
 
+    shipment["reroute_options"] = []
+    shipment["shadow_route_ready"] = False
+
     set_shipment(shipment_id, shipment)
     save_shipment(shipment)
     log_audit_event(shipment_id, time.strftime("%H:%M"), "confirm_reroute", 0.2, reason)
