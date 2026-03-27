@@ -28,3 +28,17 @@
 
 ### Issues Faced
 - Initial remote image download attempt failed, resolved by using provided local files
+
+## 21:32
+
+### Features Added
+- Created a demo frontend
+- Added working backend UI
+- Integrated calls to TomTom API
+
+### Files Modified
+- frontend/
+- backend/
+
+### Issues Faced
+- None explicitly stated
