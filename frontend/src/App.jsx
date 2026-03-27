@@ -305,6 +305,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [connError, setConnError] = useState(false);
   const started = useRef(false);
+  const currentIdRef = useRef(currentShipmentId);
+
+  useEffect(() => {
+    currentIdRef.current = currentShipmentId;
+  }, [currentShipmentId]);
 
   // APIs based on current selection
   const API = `${BASE_URL}/shipments/${currentShipmentId}`;
@@ -326,6 +331,7 @@ export default function App() {
     let reconnectTimer;
     // Reset tracker state smoothly
     setLoading(true);
+    setShipment(null); // Clear previous shipment data immediately
     started.current = false;
     setReroutes([]);
 
@@ -335,6 +341,10 @@ export default function App() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          
+          // CRITICAL: Double-check against ref to prevent stale closure updates/glitches
+          if (data.shipment_id !== currentIdRef.current) return;
+
           setShipment(data);
           setLoading(false);
           setConnError(false);
@@ -436,9 +446,6 @@ export default function App() {
     const rColor = riskColor(shipment.risk_score);
     const activeReroutes = reroutes.length > 0 ? reroutes : (shipment.reroute_options || []);
 
-    const altRoute = activeReroutes.find(r => r.id !== selected);
-    const altPoints = altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]) : [];
-    
     const selRoute = activeReroutes.find(r => r.id === selected);
     const selPoints = selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]) : [];
 
@@ -462,9 +469,13 @@ export default function App() {
         <div className="nexus-map-pane" style={{ position: "relative" }}>
           <MapContainer center={currentPos} zoom={7} style={{ height: "100%", width: "100%" }} zoomControl={false}>
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-            {mainRoutePoints.length > 0 && <Polyline positions={mainRoutePoints} color={rColor} weight={4} opacity={0.75} />}
-            {altPoints.length > 0 && <Polyline positions={altPoints} color="#22d3ee" weight={3} opacity={0.5} dashArray="8 6" />}
-            {selPoints.length > 0 && <Polyline positions={selPoints} color="#22d3ee" weight={4} opacity={0.9} />}
+            {mainRoutePoints.length > 0 && <Polyline positions={mainRoutePoints} color={rColor} weight={5} opacity={0.8} />}
+            {activeReroutes.map(r => {
+              if (r.id === selected) return null;
+              const points = r.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
+              return <Polyline key={r.id} positions={points} color="#22d3ee" weight={3} opacity={0.4} dashArray="10 10" />;
+            })}
+            {selPoints.length > 0 && <Polyline positions={selPoints} color="#22d3ee" weight={6} opacity={1.0} dashArray="12 8" />}
 
             <Marker position={currentPos} icon={truckIcon}>
               <Tooltip permanent direction="top" offset={[0, -16]}>
@@ -510,16 +521,32 @@ export default function App() {
         </div>
 
         <aside className="nexus-panel">
-          <div className="nexus-card">
+          <div className="nexus-card scale-up">
             <div className="nexus-card-title">Risk Monitor</div>
             <div className="risk-gauge-wrap">
               <RiskRing score={shipment.risk_score} />
               <div className="risk-info">
                 <div className={`risk-status-badge ${statusBadgeClass(shipment.status)}`}>{shipment.status}</div>
-                <div className="risk-shipment-id">{currentShipmentId} ETA: {shipment.eta || "--"}m</div>
+                <div className="risk-shipment-id">{currentShipmentId} &bull; {shipment.eta || "--"}m</div>
               </div>
             </div>
           </div>
+
+          {shipment.ai_reason && (
+            <div className="nexus-card ai-insight-card ripple">
+              <div className="nexus-card-title" style={{ color: '#22d3ee', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '16px' }}>🧠</span> AI REASONING / SOP
+              </div>
+              <p style={{ color: '#e2e8f0', fontSize: '13px', lineHeight: '1.5', margin: '8px 0' }}>
+                {shipment.ai_reason}
+              </p>
+              {shipment.is_compound && (
+                <div className="map-tag" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444', color: '#ef4444', fontSize: '10px', marginTop: '8px' }}>
+                  ⚠️ COMPOUND HAZARD DETECTED
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="nexus-card">
             <div className="nexus-card-title">Telemetry Overview</div>

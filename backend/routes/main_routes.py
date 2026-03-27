@@ -1,10 +1,11 @@
 from fastapi import APIRouter
-import requests
+import httpx
 import os
 from dotenv import load_dotenv
-
 from live_store import get_shipment, set_shipment
 from database import save_shipment
+from pydantic import BaseModel
+from typing import Optional
 
 router = APIRouter()
 
@@ -18,27 +19,25 @@ if not TOMTOM_API_KEY:
     raise ValueError("❌ TOMTOM_API_KEY not found in .env file")
 
 
-def get_route(origin: str, destination: str):
+async def get_route(origin: str, destination: str):
     url = (
         f"https://api.tomtom.com/routing/1/calculateRoute"
         f"/{origin}:{destination}/json"
         f"?key={TOMTOM_API_KEY}&travelMode=truck"
     )
     try:
-        res = requests.get(url, timeout=10)
-        if res.status_code != 200:
-            print("❌ API Error:", res.text)
-            return []
-        data = res.json()
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=10.0)
+            if resp.status_code != 200:
+                print("❌ API Error:", resp.text)
+                return []
+            data = resp.json()
+
         points = data["routes"][0]["legs"][0]["points"]
         return [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
     except Exception as e:
         print("❌ Exception in get_route:", e)
         return []
-
-
-from pydantic import BaseModel
-from typing import Optional
 
 
 class StartRequest(BaseModel):
@@ -47,11 +46,11 @@ class StartRequest(BaseModel):
 
 
 @router.post("/shipments/{shipment_id}/start")
-def start_shipment(shipment_id: str, req: StartRequest = None):
+async def start_shipment(shipment_id: str, req: StartRequest = None):
     origin = req.origin if req else "9.9312,76.2673"
     destination = req.destination if req else "12.9716,77.5946"
 
-    route = get_route(origin, destination)
+    route = await get_route(origin, destination)
     if not route:
         return {"error": "Route not found. Check API key or coordinates."}
 
