@@ -7,6 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+*.cpython-313.pyc
+*.cpython-314.pyc
+
 node_modules
 dist
 dist-ssr

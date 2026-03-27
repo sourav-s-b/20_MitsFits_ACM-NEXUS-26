@@ -290,6 +290,183 @@ const AnalyticsTab = ({ fleet }) => {
 };
 
 // ==========================================
+// COLLISION AVOIDANCE TAB
+// ==========================================
+const CollisionTab = ({ fleet }) => {
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [lookahead, setLookahead] = useState(3);
+  const [safeDist, setSafeDist] = useState(1.0);
+  const [autoMode, setAutoMode] = useState(false);
+  const autoRef = useRef(null);
+
+  // Build payload from live fleet data
+  const buildPayload = () => {
+    const trucks = fleet
+      .filter(f => f.current_location)
+      .map(f => ({
+        shipment_id: f.shipment_id,
+        lat: f.current_location.lat ?? f.current_location.latitude,
+        lon: f.current_location.lon ?? f.current_location.longitude,
+        speed_kmh: 60,
+        // Assign a demo heading based on shipment_id hash for visual variety
+        heading_deg: (f.shipment_id.charCodeAt(f.shipment_id.length - 1) * 37) % 360,
+      }));
+    return { trucks, lookahead_minutes: lookahead, safe_distance_km: safeDist };
+  };
+
+  const runPrediction = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/collision/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload()),
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch (e) {
+      console.error("Collision predict failed:", e);
+    }
+    setLoading(false);
+  };
+
+  // Auto-scan every 5s
+  useEffect(() => {
+    if (autoMode) {
+      runPrediction();
+      autoRef.current = setInterval(runPrediction, 5000);
+    } else {
+      clearInterval(autoRef.current);
+    }
+    return () => clearInterval(autoRef.current);
+  }, [autoMode, fleet, lookahead, safeDist]);
+
+  const severityColor = (s) => s === "HIGH" ? "#ef4444" : s === "MODERATE" ? "#f59e0b" : "#22d3ee";
+
+  return (
+    <div className="tab-pane">
+      <h1>🛡️ Predictive Collision Avoidance</h1>
+      <p>Predict inter-truck conflicts 2–5 minutes before they occur and auto-suggest reroutes.</p>
+
+      {/* Controls */}
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "24px", alignItems: "flex-end" }}>
+        <div>
+          <label style={{ display: "block", marginBottom: "6px", fontSize: "11px", color: "var(--text-muted)" }}>LOOKAHEAD (min)</label>
+          <input type="number" min="1" max="10" value={lookahead}
+            onChange={e => setLookahead(Number(e.target.value))}
+            style={{ width: "80px", padding: "8px", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)", color: "white", borderRadius: "4px" }} />
+        </div>
+        <div>
+          <label style={{ display: "block", marginBottom: "6px", fontSize: "11px", color: "var(--text-muted)" }}>SAFE DISTANCE (km)</label>
+          <input type="number" min="0.1" max="5" step="0.1" value={safeDist}
+            onChange={e => setSafeDist(Number(e.target.value))}
+            style={{ width: "90px", padding: "8px", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)", color: "white", borderRadius: "4px" }} />
+        </div>
+        <button className="nexus-btn btn-cyan" onClick={runPrediction} disabled={loading}>
+          {loading ? "⏳ Scanning..." : "⚡ Run Scan"}
+        </button>
+        <button
+          className={`nexus-btn ${autoMode ? "btn-danger" : "btn-green"}`}
+          onClick={() => setAutoMode(v => !v)}>
+          {autoMode ? "⏹ Stop Auto-Scan" : "🔄 Auto-Scan (5s)"}
+        </button>
+      </div>
+
+      {/* Fleet summary */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+        <div className="nexus-card">
+          <div className="nexus-card-title">Trucks Analyzed</div>
+          <div style={{ fontSize: "28px", fontWeight: "bold", color: "#6366f1" }}>
+            {result ? result.total_trucks_analyzed : fleet.filter(f => f.current_location).length}
+          </div>
+        </div>
+        <div className="nexus-card" style={{ borderColor: result && !result.all_clear ? "#ef4444" : "" }}>
+          <div className="nexus-card-title">Collision Risks</div>
+          <div style={{ fontSize: "28px", fontWeight: "bold", color: result && !result.all_clear ? "#ef4444" : "#10b981" }}>
+            {result ? result.collision_pairs.length : "—"}
+          </div>
+        </div>
+        <div className="nexus-card">
+          <div className="nexus-card-title">System Status</div>
+          <div style={{
+            fontSize: "14px", fontWeight: "bold", marginTop: "6px",
+            color: result ? (result.all_clear ? "#10b981" : "#ef4444") : "#888"
+          }}>
+            {result ? (result.all_clear ? "✅ ALL CLEAR" : "⚠️ RISKS DETECTED") : "Not scanned yet"}
+          </div>
+        </div>
+        <div className="nexus-card">
+          <div className="nexus-card-title">Last Scan</div>
+          <div style={{ fontSize: "20px", fontWeight: "bold", color: "#22d3ee" }}>
+            {result ? result.timestamp : "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* Collision pairs */}
+      {result && result.collision_pairs.length === 0 && (
+        <div className="nexus-card" style={{ borderColor: "#10b981", background: "rgba(16,185,129,0.05)", textAlign: "center", padding: "32px" }}>
+          <div style={{ fontSize: "32px", marginBottom: "8px" }}>✅</div>
+          <div style={{ color: "#10b981", fontWeight: "bold", fontSize: "16px" }}>All Clear — No Collision Risks Detected</div>
+          <p style={{ color: "#888", marginTop: "8px", fontSize: "13px" }}>
+            All {result.total_trucks_analyzed} trucks have safe predicted separations within the {result.lookahead_minutes}-minute window.
+          </p>
+        </div>
+      )}
+
+      {result && result.collision_pairs.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {result.collision_pairs.map((pair, i) => (
+            <div key={i} className="nexus-card" style={{ borderColor: severityColor(pair.severity), background: `rgba(${pair.severity === "HIGH" ? "239,68,68" : pair.severity === "MODERATE" ? "245,158,11" : "34,211,238"},0.05)` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+                <div>
+                  <div style={{ color: severityColor(pair.severity), fontWeight: "bold", fontSize: "14px", marginBottom: "6px" }}>
+                    {pair.severity === "HIGH" ? "🔴" : pair.severity === "MODERATE" ? "🟡" : "🔵"} {pair.severity} RISK — {pair.truck_a} ↔ {pair.truck_b}
+                  </div>
+                  <div style={{ color: "#ccc", fontSize: "12px", marginBottom: "4px" }}>
+                    Current gap: <b style={{ color: "white" }}>{pair.current_distance_km} km</b>
+                    &nbsp;→ Predicted in {result.lookahead_minutes}min: <b style={{ color: severityColor(pair.severity) }}>{pair.predicted_distance_km} km</b>
+                    &nbsp;(safe: {result.safe_distance_km} km)
+                  </div>
+                  <div style={{ color: "#22d3ee", fontSize: "12px", marginTop: "6px" }}>
+                    💡 {pair.suggested_action}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: "28px", fontWeight: "bold", color: severityColor(pair.severity) }}>
+                    {Math.round(pair.collision_probability * 100)}%
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#888" }}>collision prob.</div>
+                  <div style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
+                    Conflict in ~{pair.time_to_conflict_min}min
+                  </div>
+                </div>
+              </div>
+
+              {/* Conflict zone */}
+              <div style={{ marginTop: "12px", padding: "8px", background: "rgba(0,0,0,0.3)", borderRadius: "4px", fontSize: "11px", color: "#888", fontFamily: "monospace" }}>
+                Conflict zone: {pair.conflict_zone.lat}°N, {pair.conflict_zone.lon}°E
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!result && (
+        <div className="nexus-card" style={{ textAlign: "center", padding: "40px", color: "#888" }}>
+          <div style={{ fontSize: "40px", marginBottom: "12px" }}>🛡️</div>
+          <p>Click <b style={{ color: "white" }}>Run Scan</b> to analyse current fleet positions for collision risks.</p>
+          <p style={{ fontSize: "12px", marginTop: "8px" }}>
+            Uses dead-reckoning to predict where each truck will be in {lookahead} minutes.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==========================================
 // MAIN APP COMPONENT
 // ==========================================
 export default function App() {
@@ -413,6 +590,9 @@ export default function App() {
         <li className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>
           📦 Delivery History
         </li>
+        <li className={activeTab === 'collision' ? 'active' : ''} onClick={() => setActiveTab('collision')}>
+          🛡️ Collision AI
+        </li>
         <li className={activeTab === 'account' ? 'active' : ''} onClick={() => setActiveTab('account')}>
           👤 My Account
         </li>
@@ -440,7 +620,7 @@ export default function App() {
     }
 
     const mainRoutePoints = (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
-    
+
     const currentPos = [shipment.current_location?.lat ?? shipment.current_location?.latitude ?? 0, shipment.current_location?.lon ?? shipment.current_location?.longitude ?? 0];
     const destPos = shipment.destination ? [shipment.destination.lat ?? 0, shipment.destination.lon ?? 0] : currentPos;
     const rColor = riskColor(shipment.risk_score);
@@ -586,13 +766,13 @@ export default function App() {
 
           {shipment.status === 'HIGH RISK' && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
             <div className="nexus-card" style={{ border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
-               <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>⚠️ ACTION REQUIRED</div>
-               <p style={{ color: '#fca5a5', fontSize: '12px', marginBottom: '12px' }}>
-                 System has detected severe trajectory disruptions. Alternate routing intelligence standing by.
-               </p>
-               <button className="nexus-btn" style={{ background: '#ef4444', width: '100%' }} onClick={handleGetReroute}>
-                 Request Alternate Routes
-               </button>
+              <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>⚠️ ACTION REQUIRED</div>
+              <p style={{ color: '#fca5a5', fontSize: '12px', marginBottom: '12px' }}>
+                System has detected severe trajectory disruptions. Alternate routing intelligence standing by.
+              </p>
+              <button className="nexus-btn" style={{ background: '#ef4444', width: '100%' }} onClick={handleGetReroute}>
+                Request Alternate Routes
+              </button>
             </div>
           )}
 
@@ -628,6 +808,7 @@ export default function App() {
         {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} />}
         {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
+        {activeTab === 'collision' && <CollisionTab fleet={fleet} />}
         {activeTab === 'account' && <AccountTab />}
       </main>
     </div>
