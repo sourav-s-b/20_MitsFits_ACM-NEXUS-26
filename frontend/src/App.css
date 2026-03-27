@@ -3,8 +3,31 @@
    (Multi-tenant WebSocket Edition)
 ══════════════════════════════════════════════════ */
 
+:root {
+  --bg-deep: #020617;
+  --bg-panel: rgba(15, 23, 42, 0.98);
+  --bg-card: rgba(30, 41, 59, 0.4);
+  --accent: #a855f7;
+  --accent-secondary: #6366f1;
+  --accent-glow: rgba(168, 85, 247, 0.4);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(168, 85, 247, 0.3);
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-cyan: #22d3ee;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow-glow: 0 0 20px rgba(168, 85, 247, 0.15);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
 /* ── Layout shell ── */
-.nexus-shell {
+.onyx-shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -14,7 +37,7 @@
 }
 
 /* ── Top header bar ── */
-.nexus-header {
+.onyx-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,7 +49,7 @@
   flex-shrink: 0;
 }
 
-.nexus-logo {
+.onyx-logo {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -36,7 +59,7 @@
   color: var(--text-primary);
 }
 
-.nexus-logo-dot {
+.onyx-logo-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -50,7 +73,7 @@
   50%       { opacity: 0.5; transform: scale(0.8); }
 }
 
-.nexus-header-meta {
+.onyx-header-meta {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--text-muted);
@@ -58,30 +81,30 @@
   gap: 20px;
 }
 
-.nexus-header-meta span { color: var(--text-secondary); }
+.onyx-header-meta span { color: var(--text-secondary); }
 
 /* ── Main content area ── */
-.nexus-main {
+.onyx-main {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
 /* ── Map pane ── */
-.nexus-map-pane {
+.onyx-map-pane {
   flex: 1;
   position: relative;
   overflow: hidden;
 }
 
-.nexus-map-pane .leaflet-container {
+.onyx-map-pane .leaflet-container {
   height: 100%;
   width: 100%;
   background: #0a0f1a;
 }
 
 /* ── Side panel ── */
-.nexus-panel {
+.onyx-panel {
   width: 340px;
   flex-shrink: 0;
   display: flex;
@@ -95,7 +118,7 @@
 }
 
 /* ── Generic card ── */
-.nexus-card {
+.onyx-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -104,7 +127,7 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.nexus-card:hover {
+.onyx-card:hover {
   border-color: var(--border-glow);
   box-shadow: var(--shadow-glow);
   transform: translateY(-2px);
@@ -134,7 +157,7 @@
   opacity: 1;
 }
 
-.nexus-card-title {
+.onyx-card-title {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1.2px;
@@ -253,12 +276,12 @@
 }
 
 /* ── Action buttons ── */
-.nexus-btn-row {
+.onyx-btn-row {
   display: flex;
   gap: 8px;
 }
 
-.nexus-btn {
+.onyx-btn {
   flex: 1;
   padding: 11px 10px;
   border-radius: var(--radius-sm);
@@ -274,11 +297,11 @@
   gap: 6px;
 }
 
-.nexus-btn:active { transform: scale(0.97); }
+.onyx-btn:active { transform: scale(0.97); }
 /* ═════════════════════════════════════
    DASHBOARD SIDEBAR & LAYOUT
    ═════════════════════════════════════ */
-.nexus-shell.with-sidebar {
+.onyx-shell.with-sidebar {
   display: flex;
   flex-direction: row;
 }
@@ -340,7 +363,7 @@
   font-family: var(--font-mono);
 }
 
-.nexus-main-content {
+.onyx-main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -624,6 +647,44 @@
 }
 
 /* ── Map overlay tags ── */
+/* ── Risk status badges ── */
+.risk-status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.badge-safe {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.badge-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--accent-amber);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+.badge-high {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-red);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  animation: pulse-danger 2s infinite;
+}
+.badge-rerouted {
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+@keyframes pulse-danger {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
 .map-overlay {
   position: absolute;
   top: 12px;
@@ -658,7 +719,7 @@
 }
 
 /* ── Loading screen ── */
-.nexus-loading {
+.onyx-loading {
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -670,7 +731,7 @@
   font-size: 14px;
 }
 
-.nexus-spinner {
+.onyx-spinner {
   width: 40px;
   height: 40px;
   border: 2px solid var(--border);

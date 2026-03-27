@@ -2,7 +2,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
-import requests, time
+import requests
+import time
 
 from live_store import get_shipment, set_shipment
 from database import save_shipment, log_audit_event
@@ -158,10 +159,22 @@ def get_reroute(shipment_id: str):
         url = (
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
-            f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=2&travelMode=truck"
+            f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=5&travelMode=truck"
+            f"&alternativeType=anyRoute&minDeviationDistance=1000&minDeviationTime=60"
         )
         resp   = requests.get(url, timeout=10).json()
         routes = resp.get("routes", [])
+        
+        if len(routes) == 0:
+            print(f"⚠️  TomTom returned 0 routes. Retrying fallback...")
+            fallback_url = (
+                f"https://api.tomtom.com/routing/1/calculateRoute"
+                f"/{origin}:{dest}/json"
+                f"?key={TOMTOM_KEY}&traffic=true&travelMode=truck"
+            )
+            resp   = requests.get(fallback_url, timeout=10).json()
+            routes = resp.get("routes", [])
+
         print(f"DEBUG TomTom /reroute — got {len(routes)} route(s)")
     except Exception as e:
         print(f"⚠️  TomTom routing call failed: {e}")
@@ -215,8 +228,9 @@ def confirm_reroute(shipment_id: str, selection: RouteSelection):
     new_route_found = False
     for option in shipment.get("reroute_options", []):
         if option["id"] == selection.route_id:
-            shipment["route"]      = option["polyline"]
-            shipment["route_index"] = 0          # reset truck position on new path
+            print(f"Applying new route {option['id']} with {len(option['polyline'])} pts from current pos")
+            shipment["route"]       = option["polyline"]
+            shipment["route_index"]  = 0
             new_route_found = True
             break
 
