@@ -115,16 +115,32 @@ class RouteSelection(BaseModel):
 
 @router.post("/confirm-reroute")
 def confirm_reroute(selection: RouteSelection):
+    # 1. Update status and metadata
     shipment["active_route"] = selection.route_id
     shipment["status"] = "REROUTED"
-    shipment["risk_score"] = 0.2  # risk drops after reroute
+    shipment["risk_score"] = 0.2
+    
+    # 2. Update the actual coordinate list (The missing link!)
+    # We look through the saved reroute_options to find the matching points
+    new_route_found = False
+    if "reroute_options" in shipment:
+        for option in shipment["reroute_options"]:
+            if option["id"] == selection.route_id:
+                # 'polyline' from TomTom is the list of {lat, lon} points
+                shipment["route"] = option["polyline"] 
+                new_route_found = True
+                break
+
+    # 3. Add the confirmation alert
     shipment["alerts"].append({
         "timestamp": time.strftime("%H:%M"),
-        "reason": f"Rerouted to {selection.route_id} successfully",
+        "reason": f"Rerouted to {selection.route_id} successfully" if new_route_found else "Rerouted (using default path)",
         "risk_score": 0.2,
         "severity": "SAFE"
     })
+    
     return {"ok": True, "active_route": selection.route_id}
+
 
 @router.post("/reset")
 def reset_shipment():
