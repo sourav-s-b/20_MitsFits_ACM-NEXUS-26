@@ -1,7 +1,9 @@
 import asyncio
 import random
+import time
 from live_store import get_all_active_shipments, set_shipment
 from websocket import manager
+from routes.orchestration_routes import fetch_weather, fetch_tomtom_traffic
 
 async def move_truck(shipment: dict):
     if shipment["route"] and shipment["route_index"] < len(shipment["route"]):
@@ -11,8 +13,24 @@ async def move_truck(shipment: dict):
 async def update_signals(shipment: dict):
     if shipment["status"] in ("HIGH RISK", "WARNING", "REROUTED"):
         return
-    shipment["signals"]["traffic_delay"] = random.randint(0, 40)
-    shipment["signals"]["weather_score"] = round(random.uniform(0, 1), 2)
+
+    now = time.time()
+    last_fetch = shipment.get("last_api_fetch", 0)
+
+    # Throttled live API fetch (every 30s per shipment)
+    if now - last_fetch > 30:
+        loc = shipment.get("current_location")
+        dest = shipment.get("destination")
+        
+        if loc and dest:
+            weather_data = fetch_weather(loc["lat"], loc["lon"])
+            shipment["signals"]["weather_score"] = weather_data.get("score", 0.0)
+            
+            delay = fetch_tomtom_traffic(loc["lat"], loc["lon"], dest["lat"], dest["lon"])
+            shipment["signals"]["traffic_delay"] = delay
+            
+        shipment["last_api_fetch"] = now
+
 
 async def compute_risk(shipment: dict):
     if shipment["status"] in ("HIGH RISK", "REROUTED"):

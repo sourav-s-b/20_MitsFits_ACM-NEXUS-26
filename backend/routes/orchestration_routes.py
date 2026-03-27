@@ -71,6 +71,24 @@ def _fallback_weather() -> dict:
         "score":         0.05,
     }
 
+def fetch_tomtom_traffic(origin_lat: float, origin_lon: float, dest_lat: float, dest_lon: float) -> float:
+    if not TOMTOM_KEY or TOMTOM_KEY == "your_tomtom_key_here":
+        return 0.0
+    try:
+        url = (
+            f"https://api.tomtom.com/routing/1/calculateRoute"
+            f"/{origin_lat},{origin_lon}:{dest_lat},{dest_lon}/json"
+            f"?key={TOMTOM_KEY}&travelMode=truck&traffic=true"
+        )
+        data = requests.get(url, timeout=6).json()
+        if "routes" not in data or not data["routes"]:
+            return 0.0
+        summary = data["routes"][0].get("summary", {})
+        delay_seconds = summary.get("trafficDelayInSeconds", 0)
+        return round(delay_seconds / 60.0, 1)
+    except Exception as e:
+        return 0.0
+
 def normalize_traffic(delay_minutes: float) -> float:
     return round(min(delay_minutes / 60.0, 1.0), 3)
 
