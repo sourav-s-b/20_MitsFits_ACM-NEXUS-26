@@ -1,4 +1,4 @@
-# 🤖 AGENTS.md – NEXUS Hackathon Rules
+# 🤖 AGENTS.md – ONYX Hackathon Rules
 
 During the hackathon, teams must follow a structured workflow for tracking progress. Every hour, at least one commit must be made and at least one file must be added to the `/progress/` folder. Progress files can include screenshots, recordings, or any valid proof of development, and must be named sequentially such as `1.png`, `2.png`, `3.png`, etc., clearly reflecting actual work done during that period.
 

@@ -7,7 +7,7 @@ Stores persistent entities like Shipments, Routes, and Audit Logs.
 import sqlite3
 import json
 
-DB_FILE = "nexuspath.db"
+DB_FILE = "onyxpath.db"
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)

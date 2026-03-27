@@ -2,7 +2,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
-import requests, time
+import requests
+import time
 
 from live_store import get_shipment, set_shipment
 from database import save_shipment, log_audit_event
@@ -215,8 +216,9 @@ def confirm_reroute(shipment_id: str, selection: RouteSelection):
     new_route_found = False
     for option in shipment.get("reroute_options", []):
         if option["id"] == selection.route_id:
-            shipment["route"]      = option["polyline"]
-            shipment["route_index"] = 0          # reset truck position on new path
+            print(f"Applying new route {option['id']} with {len(option['polyline'])} pts from current pos")
+            shipment["route"]       = option["polyline"]
+            shipment["route_index"]  = 0
             new_route_found = True
             break
 

@@ -5,6 +5,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
+import { BRANDING } from "./branding";
 
 const BASE_URL = "http://127.0.0.1:8000";
 const WS_BASE_URL = "ws://127.0.0.1:8000";
@@ -19,7 +20,7 @@ L.Icon.Default.mergeOptions({
 
 // Icons
 const truckIcon = new L.DivIcon({
-  html: `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#22d3ee);border:2px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 12px rgba(99,102,241,0.7);">🚛</div>`,
+  html: `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#6366f1);border:2px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 12px rgba(168,85,247,0.7);">🚛</div>`,
   className: "", iconSize: [28, 28], iconAnchor: [14, 14],
 });
 const destIcon = new L.DivIcon({
@@ -85,7 +86,7 @@ const FleetTab = ({ fleet, onSelectShipment, statusBadgeClass, riskColor }) => {
   return (
     <div className="tab-pane">
       <h1>🚛 Fleet Management</h1>
-      <p>Monitor all active deliveries across the NexusPath network.</p>
+      <p>Monitor all active deliveries across the {BRANDING.fullName} network.</p>
       <div className="data-table-container">
         <table className="data-table">
           <thead>
@@ -103,7 +104,7 @@ const FleetTab = ({ fleet, onSelectShipment, statusBadgeClass, riskColor }) => {
                 <td><span className={`risk-status-badge ${statusBadgeClass(s.status)}`} style={{ fontSize: '11px', padding: '4px 8px' }}>{s.status}</span></td>
                 <td style={{ color: riskColor(s.risk_score), fontWeight: 'bold' }}>{Math.round(s.risk_score * 100)}%</td>
                 <td>
-                  <button className="nexus-btn btn-ghost" onClick={() => onSelectShipment(s.shipment_id)}>
+                  <button className="onyx-btn btn-ghost" onClick={() => onSelectShipment(s.shipment_id)}>
                     Track Live
                   </button>
                 </td>
@@ -157,17 +158,17 @@ const AccountTab = () => {
     }).then(r => r.json()).then(setUser).catch(console.error);
   }, []);
 
-  if (!user) return <div className="tab-pane"><div className="nexus-spinner"></div></div>;
+  if (!user) return <div className="tab-pane"><div className="onyx-spinner"></div></div>;
 
   return (
     <div className="tab-pane">
       <h1>👤 Global Dispatcher Profile</h1>
-      <div className="nexus-card" style={{ maxWidth: '400px', marginTop: '20px' }}>
-        <div className="nexus-card-title">Personnel File</div>
+      <div className="onyx-card" style={{ maxWidth: '400px', marginTop: '20px' }}>
+        <div className="onyx-card-title">Personnel File</div>
         <p><b>Name:</b> {user.name}</p>
         <p><b>Role:</b> {user.role}</p>
         <p><b>Auth Token:</b> <code className="mono">{user.token.slice(0, 8)}...</code></p>
-        <button className="nexus-btn btn-danger" style={{ marginTop: '15px', width: '100%' }}>Sign Out</button>
+        <button className="onyx-btn btn-danger" style={{ marginTop: '15px', width: '100%' }}>Sign Out</button>
       </div>
     </div>
   );
@@ -204,9 +205,9 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
   return (
     <div className="tab-pane">
       <h1>➕ Dispatch Shipment</h1>
-      <p>Schedule a new transport routing via the NexusPath logistics engine.</p>
+      <p>Schedule a new transport routing via the {BRANDING.fullName} logistics engine.</p>
 
-      <div className="nexus-card" style={{ maxWidth: '500px', padding: '24px' }}>
+      <div className="onyx-card" style={{ maxWidth: '500px', padding: '24px' }}>
         <form onSubmit={handleDispatch} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>SHIPMENT ID</label>
@@ -229,7 +230,7 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
             ))}
           </div>
 
-          <button type="submit" className="nexus-btn btn-green" disabled={loading} style={{ marginTop: '16px', padding: '14px' }}>
+          <button type="submit" className="onyx-btn btn-green" disabled={loading} style={{ marginTop: '16px', padding: '14px' }}>
             {loading ? "INITIALIZING ROUTE..." : "🚀 DISPATCH TRUCK"}
           </button>
         </form>
@@ -249,16 +250,16 @@ const AnalyticsTab = ({ fleet }) => {
       <p>Live predictive analytics against baseline models.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
-        <div className="nexus-card">
-          <div className="nexus-card-title">Total Fleet Delay</div>
+        <div className="onyx-card">
+          <div className="onyx-card-title">Total Fleet Delay</div>
           <div style={{ fontSize: '32px', color: '#f59e0b', fontWeight: 'bold' }}>{totalDelays} <span style={{ fontSize: '16px' }}>min</span></div>
         </div>
-        <div className="nexus-card" style={{ borderColor: criticalCount > 0 ? '#ef4444' : '' }}>
-          <div className="nexus-card-title">Critical Shipments</div>
+        <div className="onyx-card" style={{ borderColor: criticalCount > 0 ? '#ef4444' : '' }}>
+          <div className="onyx-card-title">Critical Shipments</div>
           <div style={{ fontSize: '32px', color: criticalCount > 0 ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>{criticalCount}</div>
         </div>
-        <div className="nexus-card">
-          <div className="nexus-card-title">Average Fleet Risk</div>
+        <div className="onyx-card">
+          <div className="onyx-card-title">Average Fleet Risk</div>
           <div style={{ fontSize: '32px', color: '#6366f1', fontWeight: 'bold' }}>{avgRisk}%</div>
         </div>
       </div>
@@ -395,7 +396,7 @@ export default function App() {
   const renderSidebar = () => (
     <nav className="dashboard-sidebar">
       <div className="sidebar-logo">
-        <div className="nexus-logo-dot" /> N E X U S
+        <div className="onyx-logo-dot" /> {BRANDING.logoText}
       </div>
       <ul className="sidebar-nav">
         <li className={activeTab === 'map' ? 'active' : ''} onClick={() => setActiveTab('map')}>
@@ -429,14 +430,14 @@ export default function App() {
   const renderMapTab = () => {
     if (connError) {
       return (
-        <div className="nexus-loading">
+        <div className="onyx-loading">
           <div style={{ fontSize: 32, marginBottom: 8 }}>⚠️</div>
           <p style={{ color: "var(--accent-red)", fontWeight: 600 }}>Backend Unreachable</p>
         </div>
       );
     }
     if (loading || !shipment) {
-      return <div className="nexus-loading"><div className="nexus-spinner" /></div>;
+      return <div className="onyx-loading"><div className="onyx-spinner" /></div>;
     }
 
     const mainRoutePoints = (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
@@ -466,16 +467,16 @@ export default function App() {
 
     return (
       <div className="tab-map">
-        <div className="nexus-map-pane" style={{ position: "relative" }}>
+        <div className="onyx-map-pane" style={{ position: "relative" }}>
           <MapContainer center={currentPos} zoom={7} style={{ height: "100%", width: "100%" }} zoomControl={false}>
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
             {mainRoutePoints.length > 0 && <Polyline positions={mainRoutePoints} color={rColor} weight={5} opacity={0.8} />}
             {activeReroutes.map(r => {
               if (r.id === selected) return null;
               const points = r.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
-              return <Polyline key={r.id} positions={points} color="#22d3ee" weight={3} opacity={0.4} dashArray="10 10" />;
+              return <Polyline key={r.id} positions={points} color="#a855f7" weight={2} opacity={0.2} dashArray="10 10" />;
             })}
-            {selPoints.length > 0 && <Polyline positions={selPoints} color="#22d3ee" weight={6} opacity={1.0} dashArray="12 8" />}
+            {selPoints.length > 0 && <Polyline positions={selPoints} color="#a855f7" weight={6} opacity={1.0} dashArray="12 8" />}
 
             <Marker position={currentPos} icon={truckIcon}>
               <Tooltip permanent direction="top" offset={[0, -16]}>
@@ -520,9 +521,9 @@ export default function App() {
           </div>
         </div>
 
-        <aside className="nexus-panel">
-          <div className="nexus-card scale-up">
-            <div className="nexus-card-title">Risk Monitor</div>
+        <aside className="onyx-panel">
+          <div className="onyx-card scale-up">
+            <div className="onyx-card-title">Risk Monitor</div>
             <div className="risk-gauge-wrap">
               <RiskRing score={shipment.risk_score} />
               <div className="risk-info">
@@ -533,8 +534,8 @@ export default function App() {
           </div>
 
           {shipment.ai_reason && (
-            <div className="nexus-card ai-insight-card ripple">
-              <div className="nexus-card-title" style={{ color: '#22d3ee', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="onyx-card ai-insight-card ripple">
+              <div className="onyx-card-title" style={{ color: '#22d3ee', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '16px' }}>🧠</span> AI REASONING / SOP
               </div>
               <p style={{ color: '#e2e8f0', fontSize: '13px', lineHeight: '1.5', margin: '8px 0' }}>
@@ -548,8 +549,8 @@ export default function App() {
             </div>
           )}
 
-          <div className="nexus-card">
-            <div className="nexus-card-title">Telemetry Overview</div>
+          <div className="onyx-card">
+            <div className="onyx-card-title">Telemetry Overview</div>
             <div className="signal-row">
               <span className="signal-label">Traffic Delay</span>
               <div className="signal-bar-track">
@@ -572,29 +573,29 @@ export default function App() {
             </div>
           </div>
 
-          <div className="nexus-card">
-            <div className="nexus-card-title">Operations</div>
-            <div className="nexus-btn-row">
-              <button className="nexus-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>🌩 Simulate Storm</button>
-              <button className="nexus-btn btn-cyan" onClick={() => fetch(`${API}/pipeline`)}>⚡ Run Pipeline</button>
+          <div className="onyx-card">
+            <div className="onyx-card-title">Operations</div>
+            <div className="onyx-btn-row">
+              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>🌩 Simulate Storm</button>
+              <button className="onyx-btn btn-cyan" onClick={() => fetch(`${API}/pipeline`)}>🔁 Reroute</button>
             </div>
           </div>
 
           {shipment.status === 'HIGH RISK' && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
-            <div className="nexus-card" style={{ border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
+            <div className="onyx-card" style={{ border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
                <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>⚠️ ACTION REQUIRED</div>
                <p style={{ color: '#fca5a5', fontSize: '12px', marginBottom: '12px' }}>
                  System has detected severe trajectory disruptions. Alternate routing intelligence standing by.
                </p>
-               <button className="nexus-btn" style={{ background: '#ef4444', width: '100%' }} onClick={handleGetReroute}>
+               <button className="onyx-btn" style={{ background: '#ef4444', width: '100%' }} onClick={handleGetReroute}>
                  Request Alternate Routes
                </button>
             </div>
           )}
 
-          {activeReroutes.length > 0 && (
-            <div className="nexus-card">
-              <div className="nexus-card-title">Reroute Available</div>
+          {activeReroutes.length > 0 && shipment.status !== "SAFE" && (
+            <div className="onyx-card">
+              <div className="onyx-card-title">💡 Strategic Trajectories</div>
               <div className="route-options-grid">
                 {activeReroutes.map(r => (
                   <div key={r.id} className={`route-card ${selected === r.id ? "selected" : ""}`} onClick={() => setSelected(r.id)}>
@@ -602,7 +603,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <button className="nexus-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
+              <button className="onyx-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
                 onClick={() => {
                   fetch(`${API}/confirm-reroute`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ route_id: selected }) })
                   setReroutes([]); setSelected(null);
@@ -616,9 +617,9 @@ export default function App() {
 
   // MAIN LAYOUT WRAPPER
   return (
-    <div className="nexus-shell with-sidebar">
+    <div className="onyx-shell with-sidebar">
       {renderSidebar()}
-      <main className="nexus-main-content">
+      <main className="onyx-main-content">
         {activeTab === 'map' && renderMapTab()}
         {activeTab === 'fleet' && <FleetTab fleet={fleet} onSelectShipment={handleSelectShipment} statusBadgeClass={statusBadgeClass} riskColor={riskColor} />}
         {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} />}
