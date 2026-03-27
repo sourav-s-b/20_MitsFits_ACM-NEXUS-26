@@ -40,6 +40,7 @@ async def update_signals(shipment: dict):
 
         if loc and dest:
             weather_data = await fetch_weather(loc["lat"], loc["lon"])
+            shipment["weather"] = weather_data
             shipment["signals"]["weather_score"] = weather_data.get("score", 0.0)
 
             delay = await fetch_tomtom_traffic(
