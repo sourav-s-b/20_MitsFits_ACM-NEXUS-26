@@ -160,7 +160,7 @@ def get_reroute(shipment_id: str):
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=5&travelMode=truck"
-            f"&alternativeType=anyRoute&minDeviationDistance=1000&minDeviationTime=60"
+            f"&alternativeType=anyRoute&minDeviationDistance=500"
         )
         resp   = requests.get(url, timeout=10).json()
         routes = resp.get("routes", [])
@@ -185,11 +185,18 @@ def get_reroute(shipment_id: str):
         return {"options": [], "recommended": None}
 
     options = []
-    for i, r in enumerate(routes[:2]):
+    # If there's an active simulated delay on the current route, apply it to TomTom's default recommendation (route_A)
+    # so that the system correctly prefers the deviation.
+    sim_delay_min = shipment.get("signals", {}).get("traffic_delay", 0)
+
+    for i, r in enumerate(routes[:5]):
         s = r["summary"]
+        base_time = round(s["travelTimeInSeconds"] / 60)
+        final_time = base_time + sim_delay_min if i == 0 else base_time
+        
         options.append({
-            "id":              f"route_{chr(65 + i)}",   # route_A, route_B
-            "travel_time_min": round(s["travelTimeInSeconds"] / 60),
+            "id":              f"route_{chr(65 + i)}",   # route_A ... route_E
+            "travel_time_min": final_time,
             "distance_km":     round(s["lengthInMeters"] / 1000, 1),
             "polyline":        [{"lat": p["latitude"], "lon": p["longitude"]} for p in r["legs"][0]["points"]],
         })
@@ -223,6 +230,11 @@ def confirm_reroute(shipment_id: str, selection: RouteSelection):
     shipment["active_route"] = selection.route_id
     shipment["status"]       = "REROUTED"
     shipment["risk_score"]   = 0.2
+
+    # Clear any active simulation spikes so it doesn't immediately bounce back to High Risk
+    shipment["signals"]["traffic_delay"] = 0
+    shipment["signals"]["weather_score"] = 0
+    shipment["last_api_fetch"] = 0  # Force a fresh update on next simulation tick
 
     # Update active route polyline so the map redraws
     new_route_found = False

@@ -190,8 +190,8 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
-            f"&traffic=true&maxAlternatives=3&travelMode=truck"
-            f"&alternativeType=anyRoute&minDeviationDistance=1000"
+            f"&traffic=true&maxAlternatives=5&travelMode=truck"
+            f"&alternativeType=anyRoute&minDeviationDistance=500"
         )
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=10.0)
@@ -203,6 +203,7 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
                 f"https://api.tomtom.com/routing/1/calculateRoute"
                 f"/{origin}:{dest}/json"
                 f"?key={TOMTOM_KEY}&traffic=true&travelMode=truck"
+                f"&maxAlternatives=5&alternativeType=anyRoute"
             )
             async with httpx.AsyncClient() as client:
                 resp = await client.get(fallback_url, timeout=10.0)
@@ -213,21 +214,24 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             return []
 
         options = []
-        for i, r in enumerate(routes[:3]):
+        sim_delay_min = shipment.get("signals", {}).get("traffic_delay", 0)
+
+        for i, r in enumerate(routes[:5]):
             s = r["summary"]
+            base_time = round(s["travelTimeInSeconds"] / 60)
+            final_time = base_time + sim_delay_min if i == 0 else base_time
+            
             options.append(
                 {
                     "id": f"route_{chr(65 + i)}",
-                    "travel_time_min": round(s["travelTimeInSeconds"] / 60),
+                    "travel_time_min": final_time,
                     "distance_km": round(s["lengthInMeters"] / 1000, 1),
                     "polyline": [
                         {"lat": p["latitude"], "lon": p["longitude"]}
                         for p in r["legs"][0]["points"]
                     ],
                     "recommended": (i == 1) if len(routes) > 1 else True,
-                    "reason": "AI-recommended reroute"
-                    if i == 1
-                    else "Current traffic loaded route",
+                    "reason": "AI-recommended reroute" if i == 1 else "Current traffic loaded route",
                 }
             )
         return options

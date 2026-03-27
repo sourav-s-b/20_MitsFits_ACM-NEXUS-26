@@ -770,6 +770,58 @@ export default function App() {
             </div>
           </div>
 
+          <div className="onyx-card">
+            <div className="onyx-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Area Intelligence</span>
+              <button className="onyx-btn btn-ghost" style={{ padding: '4px 8px', fontSize: '10px', height: 'auto', flex: 'none' }} 
+                onClick={async (e) => {
+                  e.target.innerText = 'Scanning...';
+                  try {
+                    await fetch(`${API}/shipments/${shipment.shipment_id}/intel`);
+                    e.target.innerText = 'Scan Area';
+                  } catch(err) {
+                     e.target.innerText = 'Error';
+                  }
+                }}
+              >
+                Scan Area
+              </button>
+            </div>
+            {shipment.intel_report ? (
+              <div style={{ marginTop: '10px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  📍 Current Region: <b style={{color: 'white'}}>{shipment.intel_report.location?.city}</b>
+                </p>
+                {shipment.intel_report.news && shipment.intel_report.news.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {shipment.intel_report.news.slice(0, 2).map((n, i) => (
+                      <div key={i} style={{ 
+                        fontSize: '11px', 
+                        padding: '8px', 
+                        background: 'rgba(255,255,255,0.03)', 
+                        borderRadius: '6px', 
+                        borderLeft: n.sentiment === 'negative' ? '3px solid var(--accent-red)' : '3px solid var(--accent-cyan)' 
+                      }}>
+                        <a href={n.url} target="_blank" rel="noreferrer" style={{ color: '#e2e8f0', textDecoration: 'none', lineHeight: '1.4', display: 'block' }}>{n.title}</a>
+                        <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          📰 {n.source}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                     No major events detected on public channels.
+                   </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '10px', lineHeight: '1.5' }}>
+                Intel scan pending. Click 'Scan Area' to fetch real-time situational awareness (News, Weather, Social).
+              </div>
+            )}
+          </div>
+
           {shipment.status === 'HIGH RISK' && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
             <div className="onyx-card" style={{ border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
               <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>⚠️ ACTION REQUIRED</div>
