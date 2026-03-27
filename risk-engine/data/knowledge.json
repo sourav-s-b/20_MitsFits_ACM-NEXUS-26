@@ -1,0 +1,22 @@
+{
+    "sops": [
+        {
+            "id": "SOP-001",
+            "trigger": "HIGH RISK",
+            "action": "Switch to Route B via NH-66. Notify warehouse coordinator.",
+            "source": "Logistics SOP v2.3"
+        },
+        {
+            "id": "SOP-002",
+            "trigger": "MODERATE",
+            "action": "Monitor for next 10 minutes. Pre-alert destination hub.",
+            "source": "Logistics SOP v2.3"
+        },
+        {
+            "id": "SOP-003",
+            "trigger": "weather_score > 0.7",
+            "action": "Reduce speed advisory. Check vehicle condition.",
+            "source": "Weather Protocol v1.1"
+        }
+    ]
+}
