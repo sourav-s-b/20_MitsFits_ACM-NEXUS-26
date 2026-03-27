@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   MapContainer, TileLayer, Marker, Polyline, Circle, useMap, Tooltip
 } from "react-leaflet";
@@ -429,17 +429,24 @@ export default function App() {
       return <div className="nexus-loading"><div className="nexus-spinner" /></div>;
     }
 
-    const mainRoutePoints = (shipment.route || []).map(p => [p.lat, p.lon]);
+    const mainRoutePoints = useMemo(() => {
+      return (shipment.route || []).map(p => [p.lat, p.lon]);
+    }, [shipment.route?.length]); // Only recalc if topology changes
+    
     const currentPos = [shipment.current_location.lat, shipment.current_location.lon];
     const destPos = shipment.destination ? [shipment.destination.lat, shipment.destination.lon] : currentPos;
     const rColor = riskColor(shipment.risk_score);
     const activeReroutes = reroutes.length > 0 ? reroutes : (shipment.reroute_options || []);
     
     const altRoute = activeReroutes.find(r => r.id !== selected);
-    const altPoints = altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+    const altPoints = useMemo(() => {
+      return altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+    }, [altRoute]);
     
     const selRoute = activeReroutes.find(r => r.id === selected);
-    const selPoints = selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+    const selPoints = useMemo(() => {
+      return selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+    }, [selRoute]);
 
     const weather = shipment.weather || {};
 

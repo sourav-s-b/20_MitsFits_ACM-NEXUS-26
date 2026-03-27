@@ -173,7 +173,7 @@ def get_reroute_options_tomtom(shipment_id: str) -> list:
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
             f"&traffic=true&maxAlternatives=2&travelMode=truck"
-            f"&avoid=unpavedRoads"
+            f"&avoid=unpavedRoads&alternativeType=anyRoute&minDeviationDistance=5000"
         )
         data   = requests.get(url, timeout=10).json()
         routes = data.get("routes", [])

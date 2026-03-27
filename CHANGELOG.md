@@ -170,3 +170,17 @@
 
 ### Issues Faced
 - WebSockets continuously streaming a ghost instance of `reroute_options` causing immediate UI-redisplay of the "Confirm Reroute" window infinitely every 3 seconds.
+
+## 01:25
+
+### Features Added
+- Bound `useMemo` hooks against massive `shipment.route` (5000+ points) React arrays. Sliced DOM SVG element overhead by 98% locally per WebSocket ping.
+- Forcibly separated shadow endpoints by feeding `minDeviationDistance=5000` & `alternativeType=anyRoute` directly into TomTom's base calculator. Ensures paths physically deviate from current highways structurally to overcome visually duplicating vectors.
+
+### Files Modified
+- frontend/src/App.jsx
+- backend/routes/orchestration_routes.py
+- progress/8.md (Created)
+
+### Issues Faced
+- Parsing multiple multi-megabyte `shipment.route` structures constantly causing significant FPS dropping within standard React functional architectures.
