@@ -5,10 +5,12 @@ from live_store import get_all_active_shipments, set_shipment
 from websocket import manager
 from routes.orchestration_routes import fetch_weather, fetch_tomtom_traffic
 
+
 async def move_truck(shipment: dict):
     if shipment["route"] and shipment["route_index"] < len(shipment["route"]):
         shipment["current_location"] = shipment["route"][shipment["route_index"]]
         shipment["route_index"] += 1
+
 
 async def update_signals(shipment: dict):
     if shipment["status"] in ("HIGH RISK", "WARNING", "REROUTED"):
@@ -21,35 +23,45 @@ async def update_signals(shipment: dict):
     if now - last_fetch > 30:
         loc = shipment.get("current_location")
         dest = shipment.get("destination")
-        
+
         if loc and dest:
             weather_data = fetch_weather(loc["lat"], loc["lon"])
             shipment["signals"]["weather_score"] = weather_data.get("score", 0.0)
-            
-            delay = fetch_tomtom_traffic(loc["lat"], loc["lon"], dest["lat"], dest["lon"])
+
+            delay = fetch_tomtom_traffic(
+                loc["lat"], loc["lon"], dest["lat"], dest["lon"]
+            )
             shipment["signals"]["traffic_delay"] = delay
-            
+
         shipment["last_api_fetch"] = now
 
 
 async def compute_risk(shipment: dict):
-    if shipment["status"] in ("HIGH RISK", "REROUTED"):
-        return
+    """
+    Delegate to the Risk-Engine Microservice (Port 8001).
+    Ensures consistency between manual checks and background simulation.
+    """
+    loc = shipment["current_location"]
+    try:
+        # Pass current signals as an override if they are already higher (event driven)
+        params = {"lat": loc["lat"], "lon": loc["lon"]}
+        # In this multi-tenant simulator, we can also pass the existing signals
+        # but the risk-engine's /risk endpoint uses internal state (event_override)
+        # For this simulation, we'll just let the engine fetch or use overrides.
+        resp = requests.get(RISK_ENGINE_URL, params=params, timeout=2).json()
 
-    t = shipment["signals"]["traffic_delay"]
-    w = shipment["signals"]["weather_score"]
+        shipment["risk_score"] = resp["risk_score"]
+        shipment["status"] = resp["status"]
+        shipment["ai_reason"] = resp.get("ai_reason")
+        shipment["ai_level"] = resp.get("ai_level")
 
-    risk = 0.0
-    if t > 20: risk += 0.5
-    if w > 0.6: risk += 0.4
+        # If risk is very high, offer reroute options if not already there
+        if shipment["status"] == "HIGH RISK" and not shipment.get("reroute_options"):
+            shipment["shadow_route_ready"] = True
 
-    shipment["risk_score"] = min(risk, 1.0)
-    if shipment["risk_score"] > 0.6:
-        shipment["status"] = "HIGH RISK"
-    elif shipment["risk_score"] > 0.4:
-        shipment["status"] = "WARNING"
-    else:
-        shipment["status"] = "SAFE"
+    except Exception as e:
+        print(f"Simulator Risk-Engine Call Error: {e}")
+
 
 async def run_simulation():
     while True:
@@ -59,8 +71,8 @@ async def run_simulation():
             await update_signals(shipment)
             await compute_risk(shipment)
             set_shipment(shipment["shipment_id"], shipment)
-            
+
             # Broadcast state via WebSockets
             await manager.broadcast(shipment["shipment_id"], shipment)
-        
-        await asyncio.sleep(3) # Broadcast every 3 seconds for smooth frontend movement
+
+        await asyncio.sleep(2)  # Faster polling for real-time feel

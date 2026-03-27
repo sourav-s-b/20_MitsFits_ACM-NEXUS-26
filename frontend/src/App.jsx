@@ -13,8 +13,8 @@ const WS_BASE_URL = "ws://127.0.0.1:8000";
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl:       "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
 // Icons
@@ -48,14 +48,14 @@ function riskColor(score) {
   return "#10b981";
 }
 function statusBadgeClass(status) {
-  if (status === "HIGH RISK")  return "badge-high";
-  if (status === "WARNING")    return "badge-warning";
-  if (status === "REROUTED")   return "badge-rerouted";
+  if (status === "HIGH RISK") return "badge-high";
+  if (status === "WARNING") return "badge-warning";
+  if (status === "REROUTED") return "badge-rerouted";
   return "badge-safe";
 }
 function aiLevelClass(level) {
   if (level === "CRITICAL") return "ai-critical";
-  if (level === "HIGH")     return "ai-high";
+  if (level === "HIGH") return "ai-high";
   if (level === "MODERATE") return "ai-moderate";
   return "ai-safe";
 }
@@ -100,7 +100,7 @@ const FleetTab = ({ fleet, onSelectShipment, statusBadgeClass, riskColor }) => {
             {fleet.map(s => (
               <tr key={s.shipment_id}>
                 <td className="mono">{s.shipment_id}</td>
-                <td><span className={`risk-status-badge ${statusBadgeClass(s.status)}`} style={{fontSize:'11px', padding: '4px 8px'}}>{s.status}</span></td>
+                <td><span className={`risk-status-badge ${statusBadgeClass(s.status)}`} style={{ fontSize: '11px', padding: '4px 8px' }}>{s.status}</span></td>
                 <td style={{ color: riskColor(s.risk_score), fontWeight: 'bold' }}>{Math.round(s.risk_score * 100)}%</td>
                 <td>
                   <button className="nexus-btn btn-ghost" onClick={() => onSelectShipment(s.shipment_id)}>
@@ -109,7 +109,7 @@ const FleetTab = ({ fleet, onSelectShipment, statusBadgeClass, riskColor }) => {
                 </td>
               </tr>
             ))}
-            {fleet.length === 0 && <tr><td colSpan="4" style={{textAlign:'center', color: '#888'}}>No active shipments.</td></tr>}
+            {fleet.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center', color: '#888' }}>No active shipments.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -119,7 +119,7 @@ const FleetTab = ({ fleet, onSelectShipment, statusBadgeClass, riskColor }) => {
 
 const HistoryTab = ({ currentShipmentId, riskColor }) => {
   const [history, setHistory] = useState([]);
-  
+
   useEffect(() => {
     fetch(`${BASE_URL}/shipments/${currentShipmentId}/history`)
       .then(r => r.json()).then(d => setHistory(d.history)).catch(console.error);
@@ -130,13 +130,13 @@ const HistoryTab = ({ currentShipmentId, riskColor }) => {
       <h1>📦 Delivery Audit Engine ({currentShipmentId})</h1>
       <p>Permanent ledger of AI intelligence events and interventions.</p>
       <div className="timeline">
-        {history.length === 0 && <p style={{color: '#888'}}>No audit logs found for this shipment.</p>}
+        {history.length === 0 && <p style={{ color: '#888' }}>No audit logs found for this shipment.</p>}
         {history.map((log, i) => (
           <div key={i} className="timeline-item">
             <div className="timeline-time">{log.timestamp}</div>
             <div className="timeline-content">
-              <div className="timeline-title" style={{color: riskColor(log.risk_score)}}>
-                {log.event_type.toUpperCase()} (Risk: {Math.round(log.risk_score*100)}%)
+              <div className="timeline-title" style={{ color: riskColor(log.risk_score) }}>
+                {log.event_type.toUpperCase()} (Risk: {Math.round(log.risk_score * 100)}%)
               </div>
               <div className="timeline-desc">{log.reason}</div>
             </div>
@@ -149,7 +149,7 @@ const HistoryTab = ({ currentShipmentId, riskColor }) => {
 
 const AccountTab = () => {
   const [user, setUser] = useState(null);
-  
+
   useEffect(() => {
     fetch(`${BASE_URL}/login`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -167,7 +167,7 @@ const AccountTab = () => {
         <p><b>Name:</b> {user.name}</p>
         <p><b>Role:</b> {user.role}</p>
         <p><b>Auth Token:</b> <code className="mono">{user.token.slice(0, 8)}...</code></p>
-        <button className="nexus-btn btn-danger" style={{marginTop:'15px', width: '100%'}}>Sign Out</button>
+        <button className="nexus-btn btn-danger" style={{ marginTop: '15px', width: '100%' }}>Sign Out</button>
       </div>
     </div>
   );
@@ -178,7 +178,7 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
   const [origin, setOrigin] = useState("19.0760,72.8777");
   const [target, setTarget] = useState("18.5204,73.8567");
   const [loading, setLoading] = useState(false);
-  
+
   const presets = [
     { label: "Kochi → Bangalore", o: "9.9312,76.2673", d: "12.9716,77.5946" },
     { label: "Mumbai → Pune", o: "19.0760,72.8777", d: "18.5204,73.8567" },
@@ -205,31 +205,31 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
     <div className="tab-pane">
       <h1>➕ Dispatch Shipment</h1>
       <p>Schedule a new transport routing via the NexusPath logistics engine.</p>
-      
+
       <div className="nexus-card" style={{ maxWidth: '500px', padding: '24px' }}>
         <form onSubmit={handleDispatch} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <label style={{display:'block', marginBottom:'8px', fontSize:'12px', color:'var(--text-muted)'}}>SHIPMENT ID</label>
-            <input type="text" value={shipmentId} onChange={e=>setShipmentId(e.target.value)} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid var(--border)', color:'white', borderRadius:'4px'}} />
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>SHIPMENT ID</label>
+            <input type="text" value={shipmentId} onChange={e => setShipmentId(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
           </div>
           <div>
-            <label style={{display:'block', marginBottom:'8px', fontSize:'12px', color:'var(--text-muted)'}}>ORIGIN (Lat,Lon)</label>
-            <input type="text" value={origin} onChange={e=>setOrigin(e.target.value)} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid var(--border)', color:'white', borderRadius:'4px'}} />
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>ORIGIN (Lat,Lon)</label>
+            <input type="text" value={origin} onChange={e => setOrigin(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
           </div>
           <div>
-            <label style={{display:'block', marginBottom:'8px', fontSize:'12px', color:'var(--text-muted)'}}>DESTINATION (Lat,Lon)</label>
-            <input type="text" value={target} onChange={e=>setTarget(e.target.value)} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid var(--border)', color:'white', borderRadius:'4px'}} />
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>DESTINATION (Lat,Lon)</label>
+            <input type="text" value={target} onChange={e => setTarget(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
           </div>
-          
-          <div style={{display:'flex', gap:'8px', margin:'10px 0', flexWrap: 'wrap'}}>
+
+          <div style={{ display: 'flex', gap: '8px', margin: '10px 0', flexWrap: 'wrap' }}>
             {presets.map(p => (
-              <button type="button" key={p.label} className="map-tag map-tag-alt" style={{cursor:'pointer'}} onClick={() => {setOrigin(p.o); setTarget(p.d);}}>
+              <button type="button" key={p.label} className="map-tag map-tag-alt" style={{ cursor: 'pointer' }} onClick={() => { setOrigin(p.o); setTarget(p.d); }}>
                 {p.label}
               </button>
             ))}
           </div>
 
-          <button type="submit" className="nexus-btn btn-green" disabled={loading} style={{marginTop:'16px', padding:'14px'}}>
+          <button type="submit" className="nexus-btn btn-green" disabled={loading} style={{ marginTop: '16px', padding: '14px' }}>
             {loading ? "INITIALIZING ROUTE..." : "🚀 DISPATCH TRUCK"}
           </button>
         </form>
@@ -247,19 +247,19 @@ const AnalyticsTab = ({ fleet }) => {
     <div className="tab-pane">
       <h1>📊 Delivery Estimations / Analytics</h1>
       <p>Live predictive analytics against baseline models.</p>
-      
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
         <div className="nexus-card">
           <div className="nexus-card-title">Total Fleet Delay</div>
-          <div style={{fontSize: '32px', color: '#f59e0b', fontWeight: 'bold'}}>{totalDelays} <span style={{fontSize:'16px'}}>min</span></div>
+          <div style={{ fontSize: '32px', color: '#f59e0b', fontWeight: 'bold' }}>{totalDelays} <span style={{ fontSize: '16px' }}>min</span></div>
         </div>
-        <div className="nexus-card" style={{borderColor: criticalCount > 0 ? '#ef4444' : ''}}>
+        <div className="nexus-card" style={{ borderColor: criticalCount > 0 ? '#ef4444' : '' }}>
           <div className="nexus-card-title">Critical Shipments</div>
-          <div style={{fontSize: '32px', color: criticalCount > 0 ? '#ef4444' : '#10b981', fontWeight: 'bold'}}>{criticalCount}</div>
+          <div style={{ fontSize: '32px', color: criticalCount > 0 ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>{criticalCount}</div>
         </div>
         <div className="nexus-card">
           <div className="nexus-card-title">Average Fleet Risk</div>
-          <div style={{fontSize: '32px', color: '#6366f1', fontWeight: 'bold'}}>{avgRisk}%</div>
+          <div style={{ fontSize: '32px', color: '#6366f1', fontWeight: 'bold' }}>{avgRisk}%</div>
         </div>
       </div>
 
@@ -277,9 +277,9 @@ const AnalyticsTab = ({ fleet }) => {
             {fleet.map(s => (
               <tr key={s.shipment_id}>
                 <td className="mono">{s.shipment_id}</td>
-                <td style={{color: s.status === "SAFE" ? "#10b981" : "#ef4444"}}>{s.status}</td>
-                <td><span style={{color: s.signals?.traffic_delay > 15 ? '#ef4444' : '#fff'}}>{s.signals?.traffic_delay || 0} mins</span></td>
-                <td>+ {(s.signals?.traffic_delay || 0) + Math.floor((s.signals?.weather_score||0)*20)} mins impact</td>
+                <td style={{ color: s.status === "SAFE" ? "#10b981" : "#ef4444" }}>{s.status}</td>
+                <td><span style={{ color: s.signals?.traffic_delay > 15 ? '#ef4444' : '#fff' }}>{s.signals?.traffic_delay || 0} mins</span></td>
+                <td>+ {(s.signals?.traffic_delay || 0) + Math.floor((s.signals?.weather_score || 0) * 20)} mins impact</td>
               </tr>
             ))}
           </tbody>
@@ -408,7 +408,7 @@ export default function App() {
         </li>
       </ul>
       <div className="sidebar-footer">
-        Tracking: <br /><b style={{color: 'white'}}>{currentShipmentId}</b>
+        Tracking: <br /><b style={{ color: 'white' }}>{currentShipmentId}</b>
       </div>
     </nav>
   );
@@ -437,7 +437,7 @@ export default function App() {
     const destPos = shipment.destination ? [shipment.destination.lat ?? 0, shipment.destination.lon ?? 0] : currentPos;
     const rColor = riskColor(shipment.risk_score);
     const activeReroutes = reroutes.length > 0 ? reroutes : (shipment.reroute_options || []);
-    
+
     const altRoute = activeReroutes.find(r => r.id !== selected);
     const altPoints = useMemo(() => {
       return altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
@@ -458,24 +458,24 @@ export default function App() {
             {mainRoutePoints.length > 0 && <Polyline positions={mainRoutePoints} color={rColor} weight={4} opacity={0.75} />}
             {altPoints.length > 0 && <Polyline positions={altPoints} color="#22d3ee" weight={3} opacity={0.5} dashArray="8 6" />}
             {selPoints.length > 0 && <Polyline positions={selPoints} color="#22d3ee" weight={4} opacity={0.9} />}
-            
+
             <Marker position={currentPos} icon={truckIcon}>
               <Tooltip permanent direction="top" offset={[0, -16]}>
                 <span style={{ fontSize: "11px" }}>{currentShipmentId}: {shipment.status}</span>
               </Tooltip>
             </Marker>
-            
+
             {(shipment.status === "HIGH RISK" || shipment.status === "WARNING" || shipment.status === "CRITICAL") && (
-              <Circle 
-                center={currentPos} 
-                radius={shipment.status === "HIGH RISK" ? 25000 : 12000} 
-                pathOptions={{ 
-                  color: shipment.status === "WARNING" ? '#f59e0b' : '#ef4444', 
-                  fillColor: shipment.status === "WARNING" ? '#f59e0b' : '#ef4444', 
-                  fillOpacity: 0.15, 
+              <Circle
+                center={currentPos}
+                radius={shipment.status === "HIGH RISK" ? 25000 : 12000}
+                pathOptions={{
+                  color: shipment.status === "WARNING" ? '#f59e0b' : '#ef4444',
+                  fillColor: shipment.status === "WARNING" ? '#f59e0b' : '#ef4444',
+                  fillOpacity: 0.15,
                   weight: 2,
                   dashArray: "10 5"
-                }} 
+                }}
               />
             )}
 
@@ -519,23 +519,29 @@ export default function App() {
             <div className="signal-row">
               <span className="signal-label">Traffic Delay</span>
               <div className="signal-bar-track">
-                <div className="signal-bar-fill" style={{ width: `${Math.min((shipment.signals?.traffic_delay||0)/60*100, 100)}%`, background: shipment.signals?.traffic_delay > 30 ? "#ef4444" : "#6366f1" }} />
+                <div className="signal-bar-fill" style={{
+                  width: `${Math.min(shipment.signals.traffic_delay / 60 * 100, 100)}%`,
+                  background: shipment.signals.traffic_delay > 30 ? "#ef4444" : "#6366f1"
+                }} />
               </div>
-              <span className="signal-value">{shipment.signals?.traffic_delay||0}m</span>
+              <span className="signal-value">{shipment.signals?.traffic_delay || 0}m</span>
             </div>
             <div className="signal-row">
               <span className="signal-label">Weather Score</span>
               <div className="signal-bar-track">
-                <div className="signal-bar-fill" style={{ width: `${(shipment.signals?.weather_score||0)*100}%`, background: (shipment.signals?.weather_score||0)>0.6 ? "#f59e0b" : "#10b981" }} />
+                <div className="signal-bar-fill" style={{
+                  width: `${(shipment.signals.weather_score || 0) * 100}%`,
+                  background: (shipment.signals.weather_score || 0) > 0.6 ? "#f59e0b" : "#10b981"
+                }} />
               </div>
-              <span className="signal-value">{parseFloat(shipment.signals?.weather_score||0).toFixed(2)}</span>
+              <span className="signal-value">{parseFloat(shipment.signals?.weather_score || 0).toFixed(2)}</span>
             </div>
           </div>
 
           <div className="nexus-card">
             <div className="nexus-card-title">Operations</div>
             <div className="nexus-btn-row">
-              <button className="nexus-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, {method: 'POST'})}>🌩 Simulate Storm</button>
+              <button className="nexus-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>🌩 Simulate Storm</button>
               <button className="nexus-btn btn-cyan" onClick={() => fetch(`${API}/pipeline`)}>⚡ Run Pipeline</button>
             </div>
           </div>
@@ -550,7 +556,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <button className="nexus-btn btn-green" style={{width:'100%', marginTop:'8px'}} 
+              <button className="nexus-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
                 onClick={() => {
                   fetch(`${API}/confirm-reroute`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ route_id: selected }) })
                   setReroutes([]); setSelected(null);
