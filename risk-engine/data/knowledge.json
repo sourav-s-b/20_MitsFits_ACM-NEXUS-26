@@ -17,6 +17,18 @@
             "trigger": "weather_score > 0.7",
             "action": "Reduce speed advisory. Check vehicle condition.",
             "source": "Weather Protocol v1.1"
+        },
+        {
+            "id": "SOP-Beta",
+            "trigger": "storm_detected",
+            "action": "High-speed winds detected on NH66. Reduce speed to 40km/h or seek alternative route.",
+            "source": "AeroGlide Real-time Advisory"
+        },
+        {
+            "id": "SOP-Traffic-Alpha",
+            "trigger": "traffic_bottleneck",
+            "action": "Heavy congestion detected ahead. Reroute via bypass or wait 15 min.",
+            "source": "Traffic Control v4.0"
         }
     ]
 }
