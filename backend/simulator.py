@@ -56,9 +56,11 @@ async def compute_risk(shipment: dict):
     if w > 0.6: risk += 0.4
 
     shipment["risk_score"] = min(risk, 1.0)
-    if shipment["risk_score"] > 0.6:
+    if shipment["risk_score"] >= 0.4:
         shipment["status"] = "HIGH RISK"
-    elif shipment["risk_score"] > 0.4:
+        if not shipment.get("reroute_options"):
+            shipment["shadow_route_ready"] = True
+    elif shipment["risk_score"] > 0.2:
         shipment["status"] = "WARNING"
     else:
         shipment["status"] = "SAFE"

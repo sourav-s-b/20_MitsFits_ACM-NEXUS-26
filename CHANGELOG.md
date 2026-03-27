@@ -216,3 +216,18 @@
 
 ### Issues Faced
 - React natively destructing the entire view tree when Leaflet's underlying map canvas forcefully faults on undefined Polyline matrices.
+
+## 01:39
+
+### Features Added
+- Engineered fault-tolerant defensive mapping parameters aggressively across React's Leaflet mapping hooks. 
+- Restored `GET /shipments`, `GET /shipments/{id}/history`, and `POST /login` endpoints that were accidentally deleted during an incoming git branch merge conflict.
+- Completely removed the 2-second blocking HTTP call to the isolated `risk-engine` (Port 8001) from the central simulation background task, reverting it to an instantaneous local rule-engine to prevent connection timeouts from destroying truck motion sequences.
+
+### Files Modified
+- backend/routes/main_routes.py
+- backend/simulator.py
+- progress/10.md (Created)
+
+### Issues Faced
+- Accidental branch merges overwriting prior feature completions silently breaking React UI component polls.

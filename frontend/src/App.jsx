@@ -429,9 +429,7 @@ export default function App() {
       return <div className="nexus-loading"><div className="nexus-spinner" /></div>;
     }
 
-    const mainRoutePoints = useMemo(() => {
-      return (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
-    }, [shipment.route?.length]); // Defend against legacy Lat/Lon payload objects
+    const mainRoutePoints = (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
     
     const currentPos = [shipment.current_location?.lat ?? shipment.current_location?.latitude ?? 0, shipment.current_location?.lon ?? shipment.current_location?.longitude ?? 0];
     const destPos = shipment.destination ? [shipment.destination.lat ?? 0, shipment.destination.lon ?? 0] : currentPos;
@@ -439,16 +437,25 @@ export default function App() {
     const activeReroutes = reroutes.length > 0 ? reroutes : (shipment.reroute_options || []);
 
     const altRoute = activeReroutes.find(r => r.id !== selected);
-    const altPoints = useMemo(() => {
-      return altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
-    }, [altRoute]);
+    const altPoints = altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]) : [];
     
     const selRoute = activeReroutes.find(r => r.id === selected);
-    const selPoints = useMemo(() => {
-      return selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
-    }, [selRoute]);
+    const selPoints = selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]) : [];
 
     const weather = shipment.weather || {};
+
+    const handleGetReroute = async () => {
+      try {
+        const res = await fetch(`${API}/reroute`);
+        const data = await res.json();
+        if (data.routes && data.routes.length > 0) {
+          setReroutes(data.routes);
+          setSelected(data.routes[0].id);
+        }
+      } catch (e) {
+        console.error("Reroute fetch failed", e);
+      }
+    };
 
     return (
       <div className="tab-map">
@@ -487,7 +494,7 @@ export default function App() {
               if (f.shipment_id === currentShipmentId) return null;
               if (!f.current_location) return null;
               return (
-                <Marker key={f.shipment_id} position={[f.current_location.lat, f.current_location.lon]} icon={truckIcon}>
+                <Marker key={f.shipment_id} position={[f.current_location.lat ?? f.current_location.latitude, f.current_location.lon ?? f.current_location.longitude]} icon={truckIcon}>
                   <Tooltip direction="top" offset={[0, -16]}>
                     <span style={{ fontSize: "11px" }}>{f.shipment_id}: {f.status}</span>
                   </Tooltip>
@@ -520,8 +527,8 @@ export default function App() {
               <span className="signal-label">Traffic Delay</span>
               <div className="signal-bar-track">
                 <div className="signal-bar-fill" style={{
-                  width: `${Math.min(shipment.signals.traffic_delay / 60 * 100, 100)}%`,
-                  background: shipment.signals.traffic_delay > 30 ? "#ef4444" : "#6366f1"
+                  width: `${Math.min((shipment.signals?.traffic_delay || 0) / 60 * 100, 100)}%`,
+                  background: (shipment.signals?.traffic_delay || 0) > 30 ? "#ef4444" : "#6366f1"
                 }} />
               </div>
               <span className="signal-value">{shipment.signals?.traffic_delay || 0}m</span>
@@ -530,8 +537,8 @@ export default function App() {
               <span className="signal-label">Weather Score</span>
               <div className="signal-bar-track">
                 <div className="signal-bar-fill" style={{
-                  width: `${(shipment.signals.weather_score || 0) * 100}%`,
-                  background: (shipment.signals.weather_score || 0) > 0.6 ? "#f59e0b" : "#10b981"
+                  width: `${(shipment.signals?.weather_score || 0) * 100}%`,
+                  background: (shipment.signals?.weather_score || 0) > 0.6 ? "#f59e0b" : "#10b981"
                 }} />
               </div>
               <span className="signal-value">{parseFloat(shipment.signals?.weather_score || 0).toFixed(2)}</span>
@@ -545,6 +552,18 @@ export default function App() {
               <button className="nexus-btn btn-cyan" onClick={() => fetch(`${API}/pipeline`)}>⚡ Run Pipeline</button>
             </div>
           </div>
+
+          {shipment.status === 'HIGH RISK' && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
+            <div className="nexus-card" style={{ border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
+               <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>⚠️ ACTION REQUIRED</div>
+               <p style={{ color: '#fca5a5', fontSize: '12px', marginBottom: '12px' }}>
+                 System has detected severe trajectory disruptions. Alternate routing intelligence standing by.
+               </p>
+               <button className="nexus-btn" style={{ background: '#ef4444', width: '100%' }} onClick={handleGetReroute}>
+                 Request Alternate Routes
+               </button>
+            </div>
+          )}
 
           {activeReroutes.length > 0 && (
             <div className="nexus-card">

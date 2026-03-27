@@ -94,47 +94,12 @@ def normalize_traffic(delay_minutes: float) -> float:
 
 def call_person2(shipment_id: str, lat: float, lon: float) -> dict:
     shipment = get_shipment(shipment_id)
-    try:
-        risk_resp = requests.get(
-            f"{PERSON2_URL}/risk",
-            params={"lat": lat, "lon": lon},
-            timeout=5,
-        )
-        if risk_resp.status_code != 200:
-            raise ValueError(f"Person 2 /risk returned {risk_resp.status_code}")
-
-        p2 = risk_resp.json()
-        risk   = p2["risk_score"]
-        status = p2["status"]
-
-        shipment["signals"]["traffic_delay"] = p2.get("traffic_delay", shipment["signals"]["traffic_delay"])
-        shipment["signals"]["weather_score"]  = p2.get("weather_score",  shipment["signals"]["weather_score"])
-        set_shipment(shipment_id, shipment)
-
-        reason = _fetch_sop_reason(status, p2.get("weather_score", 0), shipment)
-        level = {"HIGH RISK": "CRITICAL", "MODERATE": "MODERATE", "SAFE": "SAFE"}.get(status, "SAFE")
-
-        return {"risk": risk, "level": level, "reason": reason, "source": "person2"}
-    except Exception as e:
-        hour = datetime.now(timezone.utc).hour
-        traffic_norm = normalize_traffic(shipment["signals"]["traffic_delay"])
-        weather_norm = shipment["signals"]["weather_score"]
-        return _local_risk_model(traffic_norm, weather_norm, hour)
+    hour = datetime.now(timezone.utc).hour
+    traffic_norm = normalize_traffic(shipment["signals"]["traffic_delay"])
+    weather_norm = shipment["signals"]["weather_score"]
+    return _local_risk_model(traffic_norm, weather_norm, hour)
 
 def _fetch_sop_reason(status: str, weather_score: float, shipment: dict) -> str:
-    try:
-        resp = requests.get(
-            f"{PERSON2_URL}/sop",
-            params={"status": status},
-            timeout=3,
-        )
-        if resp.status_code == 200:
-            recs = resp.json().get("recommendations", [])
-            if recs:
-                sop = recs[0]
-                return f"{sop['id']}: {sop['action']} [{sop['source']}]"
-    except Exception as e:
-        pass
     hour = datetime.now(timezone.utc).hour
     traffic_norm = normalize_traffic(shipment["signals"]["traffic_delay"])
     return _rag_lookup(status, weather_score, traffic_norm, hour)

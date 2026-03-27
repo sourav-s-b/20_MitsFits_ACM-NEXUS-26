@@ -9,7 +9,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pkl
-
+*.db
 # Node / frontend
 node_modules/
 dist/
