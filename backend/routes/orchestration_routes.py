@@ -7,7 +7,9 @@ Now supports multi-tenancy and async BackgroundTasks.
 
 from fastapi import APIRouter, BackgroundTasks
 from datetime import datetime, timezone
-import os, time, requests
+import os
+import httpx
+import time
 from dotenv import load_dotenv
 
 from live_store import get_shipment, set_shipment
@@ -16,15 +18,16 @@ from database import log_audit_event
 router = APIRouter()
 load_dotenv()
 
-TOMTOM_KEY      = os.getenv("TOMTOM_API_KEY")
-OWM_KEY         = os.getenv("OPENWEATHER_API_KEY")
-PERSON2_URL     = os.getenv("PERSON2_URL", "http://127.0.0.1:8001")
+TOMTOM_KEY = os.getenv("TOMTOM_API_KEY")
+OWM_KEY = os.getenv("OPENWEATHER_API_KEY")
+PERSON2_URL = os.getenv("PERSON2_URL", "http://127.0.0.1:8001")
 
 # ══════════════════════════════════════════════════════
 # SECTION 1 — HELPERS
 # ══════════════════════════════════════════════════════
 
-def fetch_weather(lat: float, lon: float) -> dict:
+
+async def fetch_weather(lat: float, lon: float) -> dict:
     if not OWM_KEY or OWM_KEY == "your_openweathermap_key_here":
         return _fallback_weather()
     try:
@@ -32,46 +35,53 @@ def fetch_weather(lat: float, lon: float) -> dict:
             f"https://api.openweathermap.org/data/2.5/weather"
             f"?lat={lat}&lon={lon}&appid={OWM_KEY}&units=metric"
         )
-        data = requests.get(url, timeout=6).json()
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=6.0)
+            data = resp.json()
+
         if data.get("cod") != 200:
             return _fallback_weather()
 
-        rain_1h     = data.get("rain", {}).get("1h", 0.0)
-        wind_speed  = data.get("wind", {}).get("speed", 0.0)
-        visibility  = data.get("visibility", 10000) / 1000
+        rain_1h = data.get("rain", {}).get("1h", 0.0)
+        wind_speed = data.get("wind", {}).get("speed", 0.0)
+        visibility = data.get("visibility", 10000) / 1000
         description = data["weather"][0]["description"]
-        temp_c      = data["main"]["temp"]
-        humidity    = data["main"]["humidity"]
+        temp_c = data["main"]["temp"]
+        humidity = data["main"]["humidity"]
 
-        rain_score  = min(rain_1h / 20.0, 1.0)
-        wind_score  = min(wind_speed / 25.0, 1.0)
-        vis_score   = 1.0 - min(visibility / 10.0, 1.0)
-        score       = round((rain_score * 0.5 + wind_score * 0.3 + vis_score * 0.2), 3)
+        rain_score = min(rain_1h / 20.0, 1.0)
+        wind_score = min(wind_speed / 25.0, 1.0)
+        vis_score = 1.0 - min(visibility / 10.0, 1.0)
+        score = round((rain_score * 0.5 + wind_score * 0.3 + vis_score * 0.2), 3)
 
         return {
-            "description":  description,
-            "temp_c":       round(temp_c, 1),
-            "humidity":     humidity,
+            "description": description,
+            "temp_c": round(temp_c, 1),
+            "humidity": humidity,
             "visibility_km": round(visibility, 1),
-            "wind_kph":     round(wind_speed * 3.6, 1),
-            "rain_1h_mm":   rain_1h,
-            "score":        score,
+            "wind_kph": round(wind_speed * 3.6, 1),
+            "rain_1h_mm": rain_1h,
+            "score": score,
         }
-    except Exception as e:
+    except Exception:
         return _fallback_weather()
+
 
 def _fallback_weather() -> dict:
     return {
-        "description":   "clear sky (simulated)",
-        "temp_c":        28.0,
-        "humidity":      60,
+        "description": "clear sky (simulated)",
+        "temp_c": 28.0,
+        "humidity": 60,
         "visibility_km": 10.0,
-        "wind_kph":      12.0,
-        "rain_1h_mm":    0.0,
-        "score":         0.05,
+        "wind_kph": 12.0,
+        "rain_1h_mm": 0.0,
+        "score": 0.05,
     }
 
-def fetch_tomtom_traffic(origin_lat: float, origin_lon: float, dest_lat: float, dest_lon: float) -> float:
+
+async def fetch_tomtom_traffic(
+    origin_lat: float, origin_lon: float, dest_lat: float, dest_lon: float
+) -> float:
     if not TOMTOM_KEY or TOMTOM_KEY == "your_tomtom_key_here":
         return 0.0
     try:
@@ -80,17 +90,22 @@ def fetch_tomtom_traffic(origin_lat: float, origin_lon: float, dest_lat: float, 
             f"/{origin_lat},{origin_lon}:{dest_lat},{dest_lon}/json"
             f"?key={TOMTOM_KEY}&travelMode=truck&traffic=true"
         )
-        data = requests.get(url, timeout=6).json()
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=6.0)
+            data = resp.json()
+
         if "routes" not in data or not data["routes"]:
             return 0.0
         summary = data["routes"][0].get("summary", {})
         delay_seconds = summary.get("trafficDelayInSeconds", 0)
         return round(delay_seconds / 60.0, 1)
-    except Exception as e:
+    except Exception:
         return 0.0
+
 
 def normalize_traffic(delay_minutes: float) -> float:
     return round(min(delay_minutes / 60.0, 1.0), 3)
+
 
 def call_person2(shipment_id: str, lat: float, lon: float) -> dict:
     shipment = get_shipment(shipment_id)
@@ -99,77 +114,117 @@ def call_person2(shipment_id: str, lat: float, lon: float) -> dict:
     weather_norm = shipment["signals"]["weather_score"]
     return _local_risk_model(traffic_norm, weather_norm, hour)
 
+
 def _fetch_sop_reason(status: str, weather_score: float, shipment: dict) -> str:
     hour = datetime.now(timezone.utc).hour
     traffic_norm = normalize_traffic(shipment["signals"]["traffic_delay"])
     return _rag_lookup(status, weather_score, traffic_norm, hour)
 
-def _local_risk_model(traffic: float, weather: float, hour: int) -> dict:
-    time_risk = 0.15 if (hour >= 22 or hour <= 5) else (0.3 if (8 <= hour <= 10 or 17 <= hour <= 20) else 0.0)
-    risk = round(min((traffic * 0.5) + (weather * 0.35) + (time_risk * 0.15), 1.0), 3)
 
-    if risk >= 0.65:   level = "CRITICAL"
-    elif risk >= 0.35: level = "MODERATE"
-    else:              level = "SAFE"
+def _local_risk_model(traffic: float, weather: float, hour: int) -> dict:
+    # 1. Temporal Intelligence: Night-time multiplier (22:00 - 05:00)
+    is_night = (hour >= 22 or hour <= 5)
+    time_multiplier = 1.3 if is_night else 1.0
+    
+    # 2. Multimodal Risk Fusion (Compound Hazards)
+    # 80% traffic + 80% rain is ~4x more dangerous than either alone
+    base_risk = (traffic * 0.5) + (weather * 0.5)
+    compound_factor = 2.0 if (traffic > 0.7 and weather > 0.7) else 1.0
+    
+    risk = round(min(base_risk * compound_factor * time_multiplier, 1.0), 3)
+
+    if risk >= 0.7:
+        level = "CRITICAL"
+    elif risk >= 0.4:
+        level = "HIGH"
+    elif risk >= 0.2:
+        level = "MODERATE"
+    else:
+        level = "SAFE"
 
     reason = _rag_lookup(level, weather, traffic, hour)
-    return {"risk": risk, "level": level, "reason": reason, "source": "local_fallback"}
+    return {
+        "risk": risk,
+        "level": level,
+        "reason": reason,
+        "source": "Nexus-Brain Core",
+        "is_compound": (compound_factor > 1.0),
+        "is_night": is_night
+    }
+
 
 def _rag_lookup(level: str, weather: float, traffic: float, hour: int) -> str:
+    # Night-time / Storm (SOP-Alpha)
     if weather > 0.7 and (hour >= 22 or hour <= 5):
-        return "SOP-09: Night-time storm protocol active. Extreme hydroplaning risk. Mandatory reroute via NH-48 bypass."
+        return "SOP-ALPHA: Night-time storm protocol active. Extreme hydroplaning risk + reduced visibility. Mandatory reroute suggested to maintain shipment integrity."
     if weather > 0.7:
-        return "SOP-07: Severe weather on corridor. Reduce speed 40 km/h, hazard lights on, seek shelter if vis < 100m."
+        return "SOP-07: Severe precipitation on corridor. Reduce speed 40 km/h, hazard lights on, seek shelter if vis < 100m."
+    if traffic > 0.7 and weather > 0.7:
+        return "SOP-BRAVO: Compound hazard (High Traffic + Storm). Estimated 4x safety impact. Immediate course correction required."
     if traffic > 0.7:
-        return "SOP-001: Switch to Route B via NH-66. Notify warehouse coordinator. [Logistics SOP v2.3]"
-    if level in ("MODERATE", "CRITICAL"):
-        return "SOP-002: Monitor for next 10 min. Pre-alert destination hub. [Logistics SOP v2.3]"
-    return "SOP-001: All corridor conditions nominal. Monitoring active."
+        return "SOP-001: Heavy congestion on primary route. Switch to Route B via NH-66 to avoid 40+ min delay."
+    if level == "CRITICAL":
+        return "SOP-DELTA: Risk threshold exceeded. Execute emergency avoidance maneuver and alert delivery hub."
+    return "SOP-001: All corridor conditions nominal. Continuous AI monitoring active."
 
-def get_reroute_options_tomtom(shipment_id: str) -> list:
+
+async def get_reroute_options_tomtom(shipment_id: str) -> list:
     shipment = get_shipment(shipment_id)
     loc = shipment["current_location"]
     dst = shipment["destination"]
     origin = f"{loc['lat']},{loc['lon']}"
-    dest   = f"{dst['lat']},{dst['lon']}"
+    dest = f"{dst['lat']},{dst['lon']}"
+    if not loc or not dest:
+        return []
     try:
         url = (
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
-            f"&traffic=true&maxAlternatives=2&travelMode=truck"
+            f"&traffic=true&maxAlternatives=3&travelMode=truck"
             f"&avoid=unpavedRoads&alternativeType=anyRoute&minDeviationDistance=5000"
         )
-        data   = requests.get(url, timeout=10).json()
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=10.0)
+            data = resp.json()
+
         routes = data.get("routes", [])
         if not routes:
             return []
-            
+
         options = []
-        for i, r in enumerate(routes[:2]):
+        for i, r in enumerate(routes[:3]):
             s = r["summary"]
-            options.append({
-                "id":              f"route_{chr(65 + i)}",
-                "travel_time_min": round(s["travelTimeInSeconds"] / 60),
-                "distance_km":     round(s["lengthInMeters"] / 1000, 1),
-                "polyline":        [{"lat": p["latitude"], "lon": p["longitude"]} for p in r["legs"][0]["points"]],
-                "recommended":     (i==1) if len(routes)>1 else True,
-                "reason":          f"AI-recommended reroute" if i==1 else "Current traffic loaded route"
-            })
+            options.append(
+                {
+                    "id": f"route_{chr(65 + i)}",
+                    "travel_time_min": round(s["travelTimeInSeconds"] / 60),
+                    "distance_km": round(s["lengthInMeters"] / 1000, 1),
+                    "polyline": [
+                        {"lat": p["latitude"], "lon": p["longitude"]}
+                        for p in r["legs"][0]["points"]
+                    ],
+                    "recommended": (i == 1) if len(routes) > 1 else True,
+                    "reason": "AI-recommended reroute"
+                    if i == 1
+                    else "Current traffic loaded route",
+                }
+            )
         return options
-    except Exception as e:
+    except Exception:
         return []
+
 
 # ══════════════════════════════════════════════════════
 # SECTION 2 — PIPELINE CORE
 # ══════════════════════════════════════════════════════
 
-def run_pipeline(shipment_id: str, override_weather_score: float = None):
-    shipment = get_shipment(shipment_id)
-    loc  = shipment["current_location"]
-    hour = datetime.now(timezone.utc).hour
 
-    weather_data = fetch_weather(loc["lat"], loc["lon"])
+async def run_pipeline(shipment_id: str, override_weather_score: float = None):
+    shipment = get_shipment(shipment_id)
+    loc = shipment["current_location"]
+
+    weather_data = await fetch_weather(loc["lat"], loc["lon"])
     if override_weather_score is not None:
         weather_data["score"] = override_weather_score
         weather_data["description"] = "storm (simulated)"
@@ -180,38 +235,40 @@ def run_pipeline(shipment_id: str, override_weather_score: float = None):
     else:
         shipment["signals"]["weather_score"] = weather_data["score"]
 
-    traffic_norm  = normalize_traffic(shipment["signals"]["traffic_delay"])
-    weather_norm  = shipment["signals"]["weather_score"]
-
     set_shipment(shipment_id, shipment)
 
     p2_result = call_person2(shipment_id, loc["lat"], loc["lon"])
-    shipment = get_shipment(shipment_id) # reload if modified
-    
-    risk      = p2_result["risk"]
-    level     = p2_result["level"]
-    reason    = p2_result["reason"]
+    shipment = get_shipment(shipment_id)  # reload if modified
+
+    risk = p2_result["risk"]
+    level = p2_result["level"]
+    reason = p2_result["reason"]
 
     shipment["risk_score"] = risk
-    shipment["ai_reason"]  = reason
-    shipment["ai_level"]   = level
-    STATUS_MAP = {"CRITICAL": "HIGH RISK", "HIGH": "HIGH RISK", "MODERATE": "WARNING", "SAFE": "SAFE"}
+    shipment["ai_reason"] = reason
+    shipment["ai_level"] = level
+    STATUS_MAP = {
+        "CRITICAL": "HIGH RISK",
+        "HIGH": "HIGH RISK",
+        "MODERATE": "WARNING",
+        "SAFE": "SAFE",
+    }
     shipment["status"] = STATUS_MAP.get(level, "SAFE")
 
     shadow_route_options = []
     if risk > 0.7:
-        shadow_route_options = get_reroute_options_tomtom(shipment_id)
+        shadow_route_options = await get_reroute_options_tomtom(shipment_id)
         if shadow_route_options:
             shipment["reroute_options"] = shadow_route_options
             shipment["shadow_route_ready"] = True
 
     alert = {
-        "timestamp":  time.strftime("%H:%M"),
-        "reason":     reason,
+        "timestamp": time.strftime("%H:%M"),
+        "reason": reason,
         "risk_score": round(risk, 2),
-        "severity":   shipment["status"],
+        "severity": shipment["status"],
         "event_type": "pipeline",
-        "ai_level":   level,
+        "ai_level": level,
     }
     shipment["alerts"].append(alert)
     shipment["pipeline_last_run"] = time.strftime("%H:%M:%S")
@@ -224,6 +281,7 @@ def run_pipeline(shipment_id: str, override_weather_score: float = None):
 # SECTION 3 — ENDPOINTS
 # ══════════════════════════════════════════════════════
 
+
 @router.post("/shipments/{shipment_id}/simulate-storm")
 def simulate_storm(shipment_id: str, background_tasks: BackgroundTasks):
     shipment = get_shipment(shipment_id)
@@ -232,12 +290,13 @@ def simulate_storm(shipment_id: str, background_tasks: BackgroundTasks):
 
     # Offload the heavy pipeline processing to a background task
     background_tasks.add_task(run_pipeline, shipment_id, 1.0)
-    
+
     return {
         "status": "processing",
         "triggered_by": "simulate-storm",
         "message": "🌩 Storm simulation started in background",
     }
+
 
 @router.get("/shipments/{shipment_id}/pipeline")
 def get_pipeline(shipment_id: str, background_tasks: BackgroundTasks):
@@ -248,17 +307,19 @@ def get_pipeline(shipment_id: str, background_tasks: BackgroundTasks):
         "message": "Pipeline queued in background",
     }
 
+
 @router.get("/shipments/{shipment_id}/weather")
 def get_weather(shipment_id: str):
     return get_shipment(shipment_id).get("weather", {})
+
 
 @router.get("/shipments/{shipment_id}/ai-status")
 def get_ai_status(shipment_id: str):
     shipment = get_shipment(shipment_id)
     return {
-        "ai_reason":  shipment.get("ai_reason"),
-        "ai_level":   shipment.get("ai_level"),
+        "ai_reason": shipment.get("ai_reason"),
+        "ai_level": shipment.get("ai_level"),
         "risk_score": shipment.get("risk_score"),
-        "status":     shipment.get("status"),
-        "last_run":   shipment.get("pipeline_last_run"),
+        "status": shipment.get("status"),
+        "last_run": shipment.get("pipeline_last_run"),
     }

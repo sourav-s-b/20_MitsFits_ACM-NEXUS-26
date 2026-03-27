@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
 
     # Auto-start a default shipment (SHP001) so the route is ready immediately
     print("🚀 Auto-starting shipment SHP001 on boot...")
-    result = start_shipment("SHP001")
+    result = await start_shipment("SHP001")
     print(f"   → {result.get('message', result)}")
 
     yield  # app runs here
