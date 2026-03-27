@@ -29,7 +29,7 @@ PERSON2_URL = os.getenv("PERSON2_URL", "http://127.0.0.1:8001")
 
 async def fetch_weather(lat: float, lon: float) -> dict:
     if not OWM_KEY or OWM_KEY == "your_openweathermap_key_here":
-        return _fallback_weather()
+        return {"score": 0.0}
     try:
         url = (
             f"https://api.openweathermap.org/data/2.5/weather"
@@ -40,14 +40,23 @@ async def fetch_weather(lat: float, lon: float) -> dict:
             data = resp.json()
 
         if data.get("cod") != 200:
-            return _fallback_weather()
+            print(f"⚠️ OWM API Error: {data.get('message', data)}")
+            return {"score": 0.0}
 
-        rain_1h = data.get("rain", {}).get("1h", 0.0)
-        wind_speed = data.get("wind", {}).get("speed", 0.0)
-        visibility = data.get("visibility", 10000) / 1000
-        description = data["weather"][0]["description"]
-        temp_c = data["main"]["temp"]
-        humidity = data["main"]["humidity"]
+        rain_data = data.get("rain") or {}
+        rain_1h = rain_data.get("1h", 0.0)
+        
+        wind_data = data.get("wind") or {}
+        wind_speed = wind_data.get("speed", 0.0)
+        
+        vis_raw = data.get("visibility")
+        visibility = (vis_raw if vis_raw is not None else 10000) / 1000
+        
+        description = data["weather"][0]["description"] if data.get("weather") else "Clear"
+        
+        main_data = data.get("main") or {}
+        temp_c = main_data.get("temp", 25.0)
+        humidity = main_data.get("humidity", 50)
 
         rain_score = min(rain_1h / 20.0, 1.0)
         wind_score = min(wind_speed / 25.0, 1.0)
@@ -63,7 +72,8 @@ async def fetch_weather(lat: float, lon: float) -> dict:
             "rain_1h_mm": rain_1h,
             "score": score,
         }
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ OWM Exception: {e}")
         return _fallback_weather()
 
 

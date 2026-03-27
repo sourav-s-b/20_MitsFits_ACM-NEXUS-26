@@ -14,7 +14,7 @@ const WS_BASE_URL = "ws://127.0.0.1:8000";
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/zdist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
@@ -756,6 +756,20 @@ export default function App() {
               </div>
               <span className="signal-value">{parseFloat(shipment.signals?.weather_score || 0).toFixed(2)}</span>
             </div>
+
+            {weather.temp_c !== undefined && (
+              <div className="weather-telemetry" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <span>🌡 {weather.temp_c}°C</span>
+                  <span>💧 {weather.humidity}%</span>
+                  <span>💨 {weather.wind_kph} km/h</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  <span>👁 {weather.visibility_km} km vis</span>
+                  {weather.rain_1h_mm > 0 && <span style={{ color: '#3b82f6' }}>🌧 {weather.rain_1h_mm}mm/h</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="onyx-card">
