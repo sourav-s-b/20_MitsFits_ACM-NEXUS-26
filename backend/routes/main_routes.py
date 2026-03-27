@@ -21,21 +21,22 @@ if not TOMTOM_API_KEY:
 # ROUTE FETCHING FUNCTION
 # =========================
 def get_route(origin, destination):
-    url = f"https://api.tomtom.com/routing/1/calculateRoute/{origin}:{destination}/json?key={TOMTOM_API_KEY}"
+    url = (
+        f"https://api.tomtom.com/routing/1/calculateRoute"
+        f"/{origin}:{destination}/json"
+        f"?key={TOMTOM_API_KEY}&travelMode=truck"
+    )
 
     try:
-        res = requests.get(url)
+        res = requests.get(url, timeout=10)
 
         if res.status_code != 200:
             print("❌ API Error:", res.text)
             return []
 
-        data = res.json()
-
+        data   = res.json()
         points = data["routes"][0]["legs"][0]["points"]
-
-        route = [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
-
+        route  = [{"lat": p["latitude"], "lon": p["longitude"]} for p in points]
         return route
 
     except Exception as e:
@@ -48,7 +49,7 @@ def get_route(origin, destination):
 # =========================
 @router.post("/start")
 def start_shipment():
-    origin = "9.9312,76.2673"
+    origin      = "9.9312,76.2673"
     destination = "12.9716,77.5946"
 
     route = get_route(origin, destination)
@@ -56,57 +57,25 @@ def start_shipment():
     if not route:
         return {"error": "Route not found. Check API key or coordinates."}
 
-    shipment["route"] = route
-    shipment["route_index"] = 0
+    shipment["route"]            = route
+    shipment["route_index"]      = 0
     shipment["current_location"] = route[0]
-    shipment["status"] = "SAFE"
+    shipment["status"]           = "SAFE"
+    shipment["risk_score"]       = 0.0
+    shipment["alerts"]           = []
+    shipment["reroute_options"]  = []
 
     return {
-        "message": "✅ Shipment started",
+        "message":      "✅ Shipment started",
         "total_points": len(route)
     }
 
 
 # =========================
-# GET CURRENT STATE
+# SIMULATE TRAFFIC SPIKE (simple helper)
 # =========================
-@router.get("/state")
-def get_state():
-    return shipment
-
-
-# =========================
-# TRIGGER EVENT (FOR DEMO)
-# =========================
-@router.post("/event")
-def trigger_event():
-    shipment["signals"]["traffic_delay"] = 50
-    shipment["signals"]["weather_score"] = 0.9
-    shipment["status"] = "HIGH RISK"
-
-    return {"message": "⚠️ High risk event triggered"}
-
-
 @router.post("/traffic")
 def traffic_spike():
+    """Quick signal-only nudge — use POST /event for the full demo trigger."""
     shipment["signals"]["traffic_delay"] = 60
-    return {"message": "Traffic spike simulated"}
-
-# =========================
-# RESET (OPTIONAL BUT USEFUL)
-# =========================
-@router.post("/reset")
-def reset():
-    shipment["route"] = []
-    shipment["route_index"] = 0
-    shipment["signals"] = {
-        "traffic_delay": 0,
-        "weather_score": 0
-    }
-    shipment["risk_score"] = 0
-    shipment["status"] = "SAFE"
-    shipment["active_route"] = "A"
-    shipment["alerts"] = []
-    shipment.pop("reroute_options", None)
-
-    return {"message": "🔄 Reset successful"}
+    return {"message": "Traffic spike signal set"}
