@@ -2,7 +2,8 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 import os
-import joblib
+import sys
+import pickle
 import pandas as pd
 from pathlib import Path
 
@@ -12,12 +13,22 @@ OWM_KEY = os.getenv("OWM_KEY")
 TOMTOM_KEY = os.getenv("TOMTOM_KEY")
 
 # --- Model Loading ---
-MODEL_PATH = Path(__file__).parent / "risk_model.pkl"
-try:
-    risk_model = joblib.load(MODEL_PATH)
-except Exception as e:
-    print(f"[Model] Could not load model from {MODEL_PATH}: {e}")
-    risk_model = None
+# At top of predictor.py — replace the load block with this:
+
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "rf_model.pkl")
+FEATURES_PATH = os.path.join(os.path.dirname(__file__), "feature_names.pkl")
+
+if not os.path.exists(MODEL_PATH):
+    print("ERROR: rf_model.pkl not found in model/")
+    print("Train on Kaggle and download the file first.")
+    sys.exit(1)
+
+with open(MODEL_PATH, "rb") as f:
+    risk_model = pickle.load(f)
+with open(FEATURES_PATH, "rb") as f:
+    _feature_names = pickle.load(f)
+
+print(f"[Model] Loaded successfully. Features: {_feature_names}")
 
 # ── Weather ────────────────────────────────────────────────
 
@@ -119,8 +130,7 @@ def compute_risk(lat: float, lon: float, override: dict = None) -> dict:
         try:
             # Interactive risk: high traffic + high rain = exponential probability
             X_test = pd.DataFrame(
-                [[norm_traffic, weather, hour]],
-                columns=["traffic", "weather", "hour"]
+                [[norm_traffic, weather, hour]], columns=["traffic", "weather", "hour"]
             )
             prediction = risk_model.predict(X_test)
             risk = round(float(prediction[0]), 3)
@@ -144,7 +154,7 @@ def compute_risk(lat: float, lon: float, override: dict = None) -> dict:
     drivers = {
         "Trafficintensity": norm_traffic,
         "Weatherhazard": weather,
-        "Temporalfatigue": time_score
+        "Temporalfatigue": time_score,
     }
     primary_driver = max(drivers, key=drivers.get)
 
@@ -155,5 +165,5 @@ def compute_risk(lat: float, lon: float, override: dict = None) -> dict:
         "time_risk": round(time_score, 2),
         "risk_score": risk,
         "status": status,
-        "primary_driver": primary_driver
+        "primary_driver": primary_driver,
     }
