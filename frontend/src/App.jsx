@@ -379,6 +379,26 @@ export default function App() {
     setActiveTab("map");
   };
 
+  // ── Pre-compute memoized route data (hooks must be at component top-level) ──
+  const activeReroutes = shipment
+    ? (reroutes.length > 0 ? reroutes : (shipment.reroute_options || []))
+    : [];
+
+  const mainRoutePoints = useMemo(() => {
+    if (!shipment) return [];
+    return (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
+  }, [shipment?.route?.length]);
+
+  const altRoute = activeReroutes.find(r => r.id !== selected);
+  const altPoints = useMemo(() => {
+    return altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+  }, [altRoute]);
+
+  const selRoute = activeReroutes.find(r => r.id === selected);
+  const selPoints = useMemo(() => {
+    return selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+  }, [selRoute]);
+
   // ══════════════════════════════════
   // RENDER: SIDEBAR NAVIGATION
   // ══════════════════════════════════
@@ -429,25 +449,9 @@ export default function App() {
       return <div className="nexus-loading"><div className="nexus-spinner" /></div>;
     }
 
-    const mainRoutePoints = useMemo(() => {
-      return (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
-    }, [shipment.route?.length]); // Defend against legacy Lat/Lon payload objects
-    
     const currentPos = [shipment.current_location?.lat ?? shipment.current_location?.latitude ?? 0, shipment.current_location?.lon ?? shipment.current_location?.longitude ?? 0];
     const destPos = shipment.destination ? [shipment.destination.lat ?? 0, shipment.destination.lon ?? 0] : currentPos;
     const rColor = riskColor(shipment.risk_score);
-    const activeReroutes = reroutes.length > 0 ? reroutes : (shipment.reroute_options || []);
-
-    const altRoute = activeReroutes.find(r => r.id !== selected);
-    const altPoints = useMemo(() => {
-      return altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
-    }, [altRoute]);
-    
-    const selRoute = activeReroutes.find(r => r.id === selected);
-    const selPoints = useMemo(() => {
-      return selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
-    }, [selRoute]);
-
     const weather = shipment.weather || {};
 
     return (
