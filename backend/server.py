@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-import threading
+import asyncio
 import os
 from dotenv import load_dotenv
 
@@ -10,6 +10,7 @@ from simulator import run_simulation
 from routes.main_routes          import router as main_router, start_shipment
 from routes.decision_routes      import router as decision_router
 from routes.orchestration_routes import router as orchestration_router
+from websocket                   import router as websocket_router
 
 # =========================
 # LOAD ENV VARIABLES
@@ -21,13 +22,12 @@ load_dotenv(override=True)
 # =========================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start background simulator thread
-    thread = threading.Thread(target=run_simulation, daemon=True)
-    thread.start()
+    # Start background simulator task using asyncio
+    asyncio.create_task(run_simulation())
 
-    # Auto-start the shipment so the route is ready immediately
-    print("🚀 Auto-starting shipment on boot...")
-    result = start_shipment()
+    # Auto-start a default shipment (SHP001) so the route is ready immediately
+    print("🚀 Auto-starting shipment SHP001 on boot...")
+    result = start_shipment("SHP001")
     print(f"   → {result.get('message', result)}")
 
     yield  # app runs here
@@ -55,6 +55,7 @@ app.add_middleware(
 app.include_router(main_router,          prefix="", tags=["shipment"])
 app.include_router(decision_router,      prefix="", tags=["decision"])
 app.include_router(orchestration_router, prefix="", tags=["orchestration"])
+app.include_router(websocket_router,     prefix="", tags=["websocket"])
 
 if __name__ == "__main__":
     import uvicorn

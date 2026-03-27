@@ -4,7 +4,8 @@ import os
 from dotenv import load_dotenv
 import requests, time
 
-from state import shipment
+from live_store import get_shipment, set_shipment
+from database import save_shipment, log_audit_event
 
 router = APIRouter()
 
@@ -64,7 +65,7 @@ def get_traffic_incidents(lat: float, lon: float):
     return None
 
 
-def build_alert(event_type: str, risk: float) -> dict:
+def build_alert(shipment_id: str, event_type: str, risk: float, shipment: dict) -> dict:
     loc = shipment["current_location"]
     incident_desc = get_traffic_incidents(loc["lat"], loc["lon"])
 
@@ -73,9 +74,14 @@ def build_alert(event_type: str, risk: float) -> dict:
         "weather_alert": "Severe weather warning along corridor — hydroplaning risk",
         "parade":        "Public event blocking route — city restriction active",
     }
+    reason = reasons.get(event_type, "Unknown disruption")
+
+    # Audit log
+    log_audit_event(shipment_id, time.strftime("%H:%M"), event_type, risk, reason)
+
     return {
         "timestamp": time.strftime("%H:%M"),
-        "reason":    reasons.get(event_type, "Unknown disruption"),
+        "reason":    reason,
         "risk_score": round(risk, 2),
         "severity":  classify_status(risk),
         "event_type": event_type,
@@ -85,12 +91,13 @@ def build_alert(event_type: str, risk: float) -> dict:
 # ══════════════════════════════════════════
 # POST /event  —  Inject a demo risk event
 # ══════════════════════════════════════════
-@router.post("/event")
-def trigger_event(event: Event):
+@router.post("/shipments/{shipment_id}/event")
+def trigger_event(shipment_id: str, event: Event):
     """
     Inject a named disruption event.
     Mutates shipment signals, recomputes risk, and appends an alert.
     """
+    shipment = get_shipment(shipment_id)
     etype = event.type
 
     # 1. Mutate signals based on event type
@@ -117,8 +124,11 @@ def trigger_event(event: Event):
     shipment["status"] = classify_status(risk)
 
     # 3. Build and store alert
-    alert = build_alert(etype, risk)
+    alert = build_alert(shipment_id, etype, risk, shipment)
     shipment["alerts"].append(alert)
+
+    set_shipment(shipment_id, shipment)
+    save_shipment(shipment)
 
     return {
         "ok": True,
@@ -132,12 +142,13 @@ def trigger_event(event: Event):
 # ══════════════════════════════════════════
 # GET /reroute  —  Fetch alternate routes
 # ══════════════════════════════════════════
-@router.get("/reroute")
-def get_reroute():
+@router.get("/shipments/{shipment_id}/reroute")
+def get_reroute(shipment_id: str):
     """
     Call TomTom Routing API and return up to 2 alternative route options.
     Gracefully returns empty list if TomTom finds nothing.
     """
+    shipment = get_shipment(shipment_id)
     loc = shipment["current_location"]
     dst = shipment["destination"]
     origin = f"{loc['lat']},{loc['lon']}"
@@ -181,6 +192,7 @@ def get_reroute():
 
     # Persist for confirm-reroute lookup
     shipment["reroute_options"] = options
+    set_shipment(shipment_id, shipment)
 
     return {"options": options, "recommended": recommended["id"]}
 
@@ -188,11 +200,13 @@ def get_reroute():
 # ══════════════════════════════════════════
 # POST /confirm-reroute  —  Accept a route
 # ══════════════════════════════════════════
-@router.post("/confirm-reroute")
-def confirm_reroute(selection: RouteSelection):
+@router.post("/shipments/{shipment_id}/confirm-reroute")
+def confirm_reroute(shipment_id: str, selection: RouteSelection):
     """
     Apply the chosen alternate route, update route polyline, lower risk.
     """
+    shipment = get_shipment(shipment_id)
+
     shipment["active_route"] = selection.route_id
     shipment["status"]       = "REROUTED"
     shipment["risk_score"]   = 0.2
@@ -219,27 +233,27 @@ def confirm_reroute(selection: RouteSelection):
         "event_type": "reroute_confirmed",
     })
 
+    set_shipment(shipment_id, shipment)
+    save_shipment(shipment)
+    log_audit_event(shipment_id, time.strftime("%H:%M"), "confirm_reroute", 0.2, reason)
+
     return {"ok": True, "active_route": selection.route_id, "route_updated": new_route_found}
 
 
 # ══════════════════════════════════════════
 # POST /reset  —  Full state reset
 # ══════════════════════════════════════════
-@router.post("/reset")
-def reset_shipment():
+@router.post("/shipments/{shipment_id}/reset")
+def reset_shipment(shipment_id: str):
     """Reset shipment to clean initial state for next demo run."""
-    shipment["signals"]       = {"traffic_delay": 5, "weather_score": 0.1}
-    shipment["risk_score"]    = 0.0
-    shipment["status"]        = "SAFE"
-    shipment["active_route"]  = "A"
-    shipment["alerts"]        = []
-    shipment["reroute_options"] = []
+    from live_store import reset_shipment as r_shipment
+    r_shipment(shipment_id)
     return {"ok": True, "message": "Shipment reset to initial state"}
 
 
 # ══════════════════════════════════════════
 # GET /state  —  Full shipment snapshot
 # ══════════════════════════════════════════
-@router.get("/state")
-def get_state():
-    return shipment
+@router.get("/shipments/{shipment_id}/state")
+def get_state(shipment_id: str):
+    return get_shipment(shipment_id)

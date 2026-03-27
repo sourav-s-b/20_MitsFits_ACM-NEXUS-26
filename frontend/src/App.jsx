@@ -6,7 +6,9 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
 
-const API = "http://127.0.0.1:8000";
+const SHIPMENT_ID = "SHP001";
+const API = `http://127.0.0.1:8000/shipments/${SHIPMENT_ID}`;
+const WS_URL = `ws://127.0.0.1:8000/ws/${SHIPMENT_ID}`;
 
 // ── Fix Leaflet icon paths for Vite ──
 delete L.Icon.Default.prototype._getIconUrl;
@@ -145,37 +147,75 @@ export default function App() {
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const started = useRef(false);
 
-  // ── Poll /state every 3 s ──
+  // ── WebSocket Connection (Live Telemetry) ──
   useEffect(() => {
-    const fetchState = async () => {
-      try {
-        const res  = await fetch(`${API}/state`);
-        const data = await res.json();
-        setShipment(data);
+    let ws;
+    let reconnectTimer;
+
+    const connectWS = () => {
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
         setConnError(false);
-        setLoading(false);
+      };
 
-        // Auto-start shipment on first load if no route yet
-        if (!started.current && (!data.route || data.route.length === 0)) {
-          started.current = true;
-          console.log("Auto-starting shipment…");
-          fetch(`${API}/start`, { method: "POST" }).catch(console.error);
-        }
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setShipment(data);
+          setLoading(false);
+          setConnError(false);
 
-        // If state now has reroute options (from pipeline), show them
-        if (data.reroute_options?.length > 0 && reroutes.length === 0) {
-          setReroutes(data.reroute_options);
-          const rec = data.reroute_options.find(r => r.recommended);
-          if (rec) { setRecommended(rec.id); setSelected(rec.id); }
+          // Auto-start shipment on first load if no route yet
+          if (!started.current && (!data.route || data.route.length === 0)) {
+            started.current = true;
+            console.log("Auto-starting shipment…");
+            fetch(`${API}/start`, { method: "POST" }).catch(console.error);
+          }
+
+          // If state now has reroute options (e.g. from background pipeline), show them
+          if (data.reroute_options && data.reroute_options.length > 0) {
+            setReroutes(prev => {
+              if (prev.length === 0) {
+                const rec = data.reroute_options.find(r => r.recommended);
+                if (rec) { 
+                  setRecommended(rec.id); 
+                  setSelected(rec.id); 
+                }
+                return data.reroute_options;
+              }
+              return prev;
+            });
+          }
+        } catch (e) {
+          console.error("WS Parse Error:", e);
         }
-      } catch (e) {
-        console.error("State fetch error:", e);
+      };
+
+      ws.onclose = () => {
         setConnError(true);
-      }
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connectWS, 3000); // Reconnect loop
+      };
+
+      ws.onerror = () => ws.close();
     };
-    fetchState();
-    const id = setInterval(fetchState, 3000);
-    return () => clearInterval(id);
+
+    // We do one initial manual fetch just to populate state instantly before WS finishes connecting
+    fetch(`${API}/state`)
+      .then(res => res.json())
+      .then(data => {
+        setShipment(data);
+        setLoading(false);
+      })
+      .catch(() => setConnError(true));
+
+    connectWS();
+
+    return () => {
+      if (ws) ws.close();
+      clearTimeout(reconnectTimer);
+    };
   }, []);
 
   // ── Auto pipeline poll every 30 s (keeps risk fresh) ──
