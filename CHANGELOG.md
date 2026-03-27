@@ -184,3 +184,17 @@
 
 ### Issues Faced
 - Parsing multiple multi-megabyte `shipment.route` structures constantly causing significant FPS dropping within standard React functional architectures.
+
+## 01:35
+
+### Features Added
+- Engineered fault-tolerant defensive mapping parameters aggressively across React's Leaflet mapping hooks. 
+- Discovered legacy un-reloaded backend `uvicorn` instances were broadcasting old `{latitude, longitude}` cache sets during reroute confirmations.
+- Front-end now silently heals incorrect data schemas on the fly (`p.lat ?? p.latitude ?? 0`) preventing unhandled `undefined` exceptions from nuking the DOM tree violently into an unrecoverable "black screen" crash loop.
+
+### Files Modified
+- frontend/src/App.jsx
+- progress/9.md (Created)
+
+### Issues Faced
+- React natively destructing the entire view tree when Leaflet's underlying map canvas forcefully faults on undefined Polyline matrices.

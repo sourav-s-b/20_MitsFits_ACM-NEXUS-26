@@ -430,11 +430,11 @@ export default function App() {
     }
 
     const mainRoutePoints = useMemo(() => {
-      return (shipment.route || []).map(p => [p.lat, p.lon]);
-    }, [shipment.route?.length]); // Only recalc if topology changes
+      return (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
+    }, [shipment.route?.length]); // Defend against legacy Lat/Lon payload objects
     
-    const currentPos = [shipment.current_location.lat, shipment.current_location.lon];
-    const destPos = shipment.destination ? [shipment.destination.lat, shipment.destination.lon] : currentPos;
+    const currentPos = [shipment.current_location?.lat ?? shipment.current_location?.latitude ?? 0, shipment.current_location?.lon ?? shipment.current_location?.longitude ?? 0];
+    const destPos = shipment.destination ? [shipment.destination.lat ?? 0, shipment.destination.lon ?? 0] : currentPos;
     const rColor = riskColor(shipment.risk_score);
     const activeReroutes = reroutes.length > 0 ? reroutes : (shipment.reroute_options || []);
     
