@@ -35,11 +35,17 @@ def get_route(origin: str, destination: str):
         print("❌ Exception in get_route:", e)
         return []
 
+from pydantic import BaseModel
+from typing import Optional
+
+class StartRequest(BaseModel):
+    origin: Optional[str] = "9.9312,76.2673"
+    destination: Optional[str] = "12.9716,77.5946"
+
 @router.post("/shipments/{shipment_id}/start")
-def start_shipment(shipment_id: str):
-    # Hardcoded origin/destination for demo, but mapped to shipment_id
-    origin      = "9.9312,76.2673"
-    destination = "12.9716,77.5946"
+def start_shipment(shipment_id: str, req: StartRequest = None):
+    origin      = req.origin if req else "9.9312,76.2673"
+    destination = req.destination if req else "12.9716,77.5946"
 
     route = get_route(origin, destination)
     if not route:

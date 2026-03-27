@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  MapContainer, TileLayer, Marker, Polyline, useMap, Tooltip
+  MapContainer, TileLayer, Marker, Polyline, Circle, useMap, Tooltip
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -76,6 +76,229 @@ function RiskRing({ score }) {
     </div>
   );
 }
+
+// ==========================================
+// SEPARATE TAB COMPONENTS
+// ==========================================
+
+const FleetTab = ({ onSelectShipment, statusBadgeClass, riskColor }) => {
+  const [fleet, setFleet] = useState([]);
+  
+  useEffect(() => {
+    fetch(`${BASE_URL}/shipments`).then(r => r.json()).then(setFleet).catch(console.error);
+  }, []);
+
+  return (
+    <div className="tab-pane">
+      <h1>🚛 Fleet Management</h1>
+      <p>Monitor all active deliveries across the NexusPath network.</p>
+      <div className="data-table-container">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Shipment ID</th>
+              <th>Status</th>
+              <th>Risk Score</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fleet.map(s => (
+              <tr key={s.shipment_id}>
+                <td className="mono">{s.shipment_id}</td>
+                <td><span className={`risk-status-badge ${statusBadgeClass(s.status)}`} style={{fontSize:'11px', padding: '4px 8px'}}>{s.status}</span></td>
+                <td style={{ color: riskColor(s.risk_score), fontWeight: 'bold' }}>{Math.round(s.risk_score * 100)}%</td>
+                <td>
+                  <button className="nexus-btn btn-ghost" onClick={() => onSelectShipment(s.shipment_id)}>
+                    Track Live
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {fleet.length === 0 && <tr><td colSpan="4" style={{textAlign:'center', color: '#888'}}>No active shipments.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const HistoryTab = ({ currentShipmentId, riskColor }) => {
+  const [history, setHistory] = useState([]);
+  
+  useEffect(() => {
+    fetch(`${BASE_URL}/shipments/${currentShipmentId}/history`)
+      .then(r => r.json()).then(d => setHistory(d.history)).catch(console.error);
+  }, [currentShipmentId]);
+
+  return (
+    <div className="tab-pane">
+      <h1>📦 Delivery Audit Engine ({currentShipmentId})</h1>
+      <p>Permanent ledger of AI intelligence events and interventions.</p>
+      <div className="timeline">
+        {history.length === 0 && <p style={{color: '#888'}}>No audit logs found for this shipment.</p>}
+        {history.map((log, i) => (
+          <div key={i} className="timeline-item">
+            <div className="timeline-time">{log.timestamp}</div>
+            <div className="timeline-content">
+              <div className="timeline-title" style={{color: riskColor(log.risk_score)}}>
+                {log.event_type.toUpperCase()} (Risk: {Math.round(log.risk_score*100)}%)
+              </div>
+              <div className="timeline-desc">{log.reason}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const AccountTab = () => {
+  const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    fetch(`${BASE_URL}/login`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: "admin", password: "password" })
+    }).then(r => r.json()).then(setUser).catch(console.error);
+  }, []);
+
+  if (!user) return <div className="tab-pane"><div className="nexus-spinner"></div></div>;
+
+  return (
+    <div className="tab-pane">
+      <h1>👤 Global Dispatcher Profile</h1>
+      <div className="nexus-card" style={{ maxWidth: '400px', marginTop: '20px' }}>
+        <div className="nexus-card-title">Personnel File</div>
+        <p><b>Name:</b> {user.name}</p>
+        <p><b>Role:</b> {user.role}</p>
+        <p><b>Auth Token:</b> <code className="mono">{user.token.slice(0, 8)}...</code></p>
+        <button className="nexus-btn btn-danger" style={{marginTop:'15px', width: '100%'}}>Sign Out</button>
+      </div>
+    </div>
+  );
+};
+
+const ScheduleTab = ({ BASE_URL, onDispatched }) => {
+  const [shipmentId, setShipmentId] = useState(`SHP-${Math.floor(Math.random() * 9999)}`);
+  const [origin, setOrigin] = useState("19.0760,72.8777");
+  const [target, setTarget] = useState("18.5204,73.8567");
+  const [loading, setLoading] = useState(false);
+  
+  const presets = [
+    { label: "Kochi → Bangalore", o: "9.9312,76.2673", d: "12.9716,77.5946" },
+    { label: "Mumbai → Pune", o: "19.0760,72.8777", d: "18.5204,73.8567" },
+    { label: "Delhi → Jaipur", o: "28.6139,77.2090", d: "26.9124,75.7873" }
+  ];
+
+  const handleDispatch = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await fetch(`${BASE_URL}/shipments/${shipmentId}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origin, destination: target })
+      });
+      onDispatched(shipmentId);
+    } catch (err) {
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="tab-pane">
+      <h1>➕ Dispatch Shipment</h1>
+      <p>Schedule a new transport routing via the NexusPath logistics engine.</p>
+      
+      <div className="nexus-card" style={{ maxWidth: '500px', padding: '24px' }}>
+        <form onSubmit={handleDispatch} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{display:'block', marginBottom:'8px', fontSize:'12px', color:'var(--text-muted)'}}>SHIPMENT ID</label>
+            <input type="text" value={shipmentId} onChange={e=>setShipmentId(e.target.value)} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid var(--border)', color:'white', borderRadius:'4px'}} />
+          </div>
+          <div>
+            <label style={{display:'block', marginBottom:'8px', fontSize:'12px', color:'var(--text-muted)'}}>ORIGIN (Lat,Lon)</label>
+            <input type="text" value={origin} onChange={e=>setOrigin(e.target.value)} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid var(--border)', color:'white', borderRadius:'4px'}} />
+          </div>
+          <div>
+            <label style={{display:'block', marginBottom:'8px', fontSize:'12px', color:'var(--text-muted)'}}>DESTINATION (Lat,Lon)</label>
+            <input type="text" value={target} onChange={e=>setTarget(e.target.value)} style={{width:'100%', padding:'10px', background:'rgba(0,0,0,0.3)', border:'1px solid var(--border)', color:'white', borderRadius:'4px'}} />
+          </div>
+          
+          <div style={{display:'flex', gap:'8px', margin:'10px 0', flexWrap: 'wrap'}}>
+            {presets.map(p => (
+              <button type="button" key={p.label} className="map-tag map-tag-alt" style={{cursor:'pointer'}} onClick={() => {setOrigin(p.o); setTarget(p.d);}}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <button type="submit" className="nexus-btn btn-green" disabled={loading} style={{marginTop:'16px', padding:'14px'}}>
+            {loading ? "INITIALIZING ROUTE..." : "🚀 DISPATCH TRUCK"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const AnalyticsTab = ({ BASE_URL }) => {
+  const [fleet, setFleet] = useState([]);
+  useEffect(() => {
+    fetch(`${BASE_URL}/shipments`).then(r => r.json()).then(setFleet).catch(console.error);
+  }, [BASE_URL]);
+
+  const totalDelays = fleet.reduce((acc, s) => acc + (s.signals?.traffic_delay || 0), 0);
+  const criticalCount = fleet.filter(s => s.status === "HIGH RISK").length;
+  const avgRisk = fleet.length ? (fleet.reduce((acc, s) => acc + s.risk_score, 0) / fleet.length * 100).toFixed(1) : 0;
+
+  return (
+    <div className="tab-pane">
+      <h1>📊 Delivery Estimations / Analytics</h1>
+      <p>Live predictive analytics against baseline models.</p>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+        <div className="nexus-card">
+          <div className="nexus-card-title">Total Fleet Delay</div>
+          <div style={{fontSize: '32px', color: '#f59e0b', fontWeight: 'bold'}}>{totalDelays} <span style={{fontSize:'16px'}}>min</span></div>
+        </div>
+        <div className="nexus-card" style={{borderColor: criticalCount > 0 ? '#ef4444' : ''}}>
+          <div className="nexus-card-title">Critical Shipments</div>
+          <div style={{fontSize: '32px', color: criticalCount > 0 ? '#ef4444' : '#10b981', fontWeight: 'bold'}}>{criticalCount}</div>
+        </div>
+        <div className="nexus-card">
+          <div className="nexus-card-title">Average Fleet Risk</div>
+          <div style={{fontSize: '32px', color: '#6366f1', fontWeight: 'bold'}}>{avgRisk}%</div>
+        </div>
+      </div>
+
+      <div className="data-table-container">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Shipment ID</th>
+              <th>System Status</th>
+              <th>TomTom Traffic Delay</th>
+              <th>Estimated Pushback</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fleet.map(s => (
+              <tr key={s.shipment_id}>
+                <td className="mono">{s.shipment_id}</td>
+                <td style={{color: s.status === "SAFE" ? "#10b981" : "#ef4444"}}>{s.status}</td>
+                <td><span style={{color: s.signals?.traffic_delay > 15 ? '#ef4444' : '#fff'}}>{s.signals?.traffic_delay || 0} mins</span></td>
+                <td>+ {(s.signals?.traffic_delay || 0) + Math.floor((s.signals?.weather_score||0)*20)} mins impact</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
 
 // ==========================================
 // MAIN APP COMPONENT
@@ -172,6 +395,12 @@ export default function App() {
         <li className={activeTab === 'fleet' ? 'active' : ''} onClick={() => setActiveTab('fleet')}>
           🚛 Fleet Logistics
         </li>
+        <li className={activeTab === 'schedule' ? 'active' : ''} onClick={() => setActiveTab('schedule')}>
+          ➕ Schedule Shipment
+        </li>
+        <li className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>
+          📊 Delivery Estimations
+        </li>
         <li className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>
           📦 Delivery History
         </li>
@@ -229,6 +458,21 @@ export default function App() {
                 <span style={{ fontSize: "11px" }}>{currentShipmentId}: {shipment.status}</span>
               </Tooltip>
             </Marker>
+            
+            {(shipment.status === "HIGH RISK" || shipment.status === "WARNING" || shipment.status === "CRITICAL") && (
+              <Circle 
+                center={currentPos} 
+                radius={shipment.status === "HIGH RISK" ? 25000 : 12000} 
+                pathOptions={{ 
+                  color: shipment.status === "WARNING" ? '#f59e0b' : '#ef4444', 
+                  fillColor: shipment.status === "WARNING" ? '#f59e0b' : '#ef4444', 
+                  fillOpacity: 0.15, 
+                  weight: 2,
+                  dashArray: "10 5"
+                }} 
+              />
+            )}
+
             <Marker position={destPos} icon={destIcon} />
             <RecenterMap coords={shipment.current_location} />
           </MapContainer>
@@ -299,118 +543,16 @@ export default function App() {
     );
   };
 
-  // ══════════════════════════════════
-  // RENDER: FLEET OVERVIEW TAB
-  // ══════════════════════════════════
-  const FleetTab = () => {
-    const [fleet, setFleet] = useState([]);
-    useEffect(() => {
-      fetch(`${BASE_URL}/shipments`).then(r => r.json()).then(setFleet).catch(console.error);
-    }, []);
-
-    return (
-      <div className="tab-pane">
-        <h1>🚛 Fleet Management</h1>
-        <p>Monitor all active deliveries across the NexusPath network.</p>
-        <div className="data-table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Shipment ID</th>
-                <th>Status</th>
-                <th>Risk Score</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fleet.map(s => (
-                <tr key={s.shipment_id}>
-                  <td className="mono">{s.shipment_id}</td>
-                  <td><span className={`risk-status-badge ${statusBadgeClass(s.status)}`} style={{fontSize:'11px', padding: '4px 8px'}}>{s.status}</span></td>
-                  <td style={{ color: riskColor(s.risk_score), fontWeight: 'bold' }}>{Math.round(s.risk_score * 100)}%</td>
-                  <td>
-                    <button className="nexus-btn btn-ghost" onClick={() => handleSelectShipment(s.shipment_id)}>
-                      Track Live
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {fleet.length === 0 && <tr><td colSpan="4" style={{textAlign:'center', color: '#888'}}>No active shipments.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  };
-
-  // ══════════════════════════════════
-  // RENDER: NOTIFICATIONS / HISTORY TAB
-  // ══════════════════════════════════
-  const HistoryTab = () => {
-    const [history, setHistory] = useState([]);
-    useEffect(() => {
-      fetch(`${BASE_URL}/shipments/${currentShipmentId}/history`)
-        .then(r => r.json()).then(d => setHistory(d.history)).catch(console.error);
-    }, [currentShipmentId]);
-
-    return (
-      <div className="tab-pane">
-        <h1>📦 Delivery Audit Engine ({currentShipmentId})</h1>
-        <p>Permanent ledger of AI intelligence events and interventions.</p>
-        <div className="timeline">
-          {history.length === 0 && <p style={{color: '#888'}}>No audit logs found for this shipment.</p>}
-          {history.map((log, i) => (
-            <div key={i} className="timeline-item">
-              <div className="timeline-time">{log.timestamp}</div>
-              <div className="timeline-content">
-                <div className="timeline-title" style={{color: riskColor(log.risk_score)}}>
-                  {log.event_type.toUpperCase()} (Risk: {Math.round(log.risk_score*100)}%)
-                </div>
-                <div className="timeline-desc">{log.reason}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // ══════════════════════════════════
-  // RENDER: ACCOUNT PROFILE TAB
-  // ══════════════════════════════════
-  const AccountTab = () => {
-    const [user, setUser] = useState(null);
-    useEffect(() => {
-      fetch(`${BASE_URL}/login`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "admin", password: "password" })
-      }).then(r => r.json()).then(setUser).catch(console.error);
-    }, []);
-
-    if (!user) return <div className="tab-pane"><div className="nexus-spinner"></div></div>;
-
-    return (
-      <div className="tab-pane">
-        <h1>👤 Global Dispatcher Profile</h1>
-        <div className="nexus-card" style={{ maxWidth: '400px', marginTop: '20px' }}>
-          <div className="nexus-card-title">Personnel File</div>
-          <p><b>Name:</b> {user.name}</p>
-          <p><b>Role:</b> {user.role}</p>
-          <p><b>Auth Token:</b> <code className="mono">{user.token.slice(0, 8)}...</code></p>
-          <button className="nexus-btn btn-danger" style={{marginTop:'15px', width: '100%'}}>Sign Out</button>
-        </div>
-      </div>
-    );
-  };
-
   // MAIN LAYOUT WRAPPER
   return (
     <div className="nexus-shell with-sidebar">
       {renderSidebar()}
       <main className="nexus-main-content">
         {activeTab === 'map' && renderMapTab()}
-        {activeTab === 'fleet' && <FleetTab />}
-        {activeTab === 'history' && <HistoryTab />}
+        {activeTab === 'fleet' && <FleetTab onSelectShipment={handleSelectShipment} statusBadgeClass={statusBadgeClass} riskColor={riskColor} />}
+        {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} />}
+        {activeTab === 'analytics' && <AnalyticsTab BASE_URL={BASE_URL} />}
+        {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
         {activeTab === 'account' && <AccountTab />}
       </main>
     </div>
