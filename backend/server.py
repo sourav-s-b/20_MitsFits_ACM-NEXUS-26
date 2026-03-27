@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 import threading
-import os
 from dotenv import load_dotenv
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +31,7 @@ app.add_middleware(
 app.include_router(main_router, prefix="", tags=["main"])
 app.include_router(decision_router, prefix="", tags=["decision"])
 
+
 # =========================
 # BACKGROUND SIMULATION
 # =========================
@@ -40,8 +40,10 @@ def start_simulation_thread():
     thread.daemon = True
     thread.start()
 
+
 start_simulation_thread()
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

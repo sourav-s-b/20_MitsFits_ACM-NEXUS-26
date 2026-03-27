@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from model.predictor import compute_risk
+from model.predictor import compute_risk, OWM_KEY, TOMTOM_KEY
 import json
+from pathlib import Path
 
 
 app = FastAPI()
@@ -15,6 +16,14 @@ app.add_middleware(
 
 # Shared override state — Person 1/3 injects events here
 event_override = {}
+
+# --- Startup Checks ---
+@app.on_event("startup")
+def startup_event():
+    if not OWM_KEY:
+        print("WARNING: OWM_KEY is not set in .env. Weather data will be mock only.")
+    if not TOMTOM_KEY:
+        print("WARNING: TOMTOM_KEY is not set in .env. Traffic data will be mock only.")
 
 
 @app.get("/risk")
@@ -53,8 +62,32 @@ def health():
 
 
 @app.get("/sop")
-def get_sop(status: str):
-    with open("data/knowledge.json") as f:
-        sops = json.load(f)["sops"]
-    matches = [s for s in sops if s["trigger"] == status]
+def get_sop(status: str, weather_score: float = None):
+    knowledge_path = Path(__file__).parent / "data" / "knowledge.json"
+    try:
+        with open(knowledge_path) as f:
+            sops = json.load(f)["sops"]
+    except Exception as e:
+        return {"error": f"Could not load knowledge base: {e}"}
+
+    matches = []
+    for s in sops:
+        trigger = s["trigger"]
+        # Exact match for status
+        if trigger == status:
+            matches.append(s)
+        # Check for numeric conditions (e.g., weather_score > 0.7)
+        elif ">" in trigger or "<" in trigger:
+            try:
+                if "weather_score" in trigger and weather_score is not None:
+                    # Simple safe evaluation for demo purposes
+                    # In production, use a safer expression parser!
+                    var, op, threshold = trigger.split()
+                    if op == ">" and weather_score > float(threshold):
+                        matches.append(s)
+                    elif op == "<" and weather_score < float(threshold):
+                        matches.append(s)
+            except Exception:
+                pass
+                
     return {"recommendations": matches}
