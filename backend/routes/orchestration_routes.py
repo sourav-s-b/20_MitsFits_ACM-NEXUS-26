@@ -202,12 +202,16 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
             f"&traffic=true&maxAlternatives=5&travelMode=truck"
-            f"&alternativeType=anyRoute&minDeviationDistance=0"
+            f"&alternativeType=anyRoute"
         )
         print(f"\n[Simulator Shadow] Pre-scanning paths for {shipment_id}...")
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=12.0)
             data = resp.json()
+
+        if resp.status_code != 200:
+            print(f"   ❌ TomTom Error ({resp.status_code}): {data.get('detailedError', {}).get('message', 'Unknown error')}")
+            print(f"   → URL: {url.split('key=')[0]}key=HIDDEN")
 
         routes = data.get("routes", [])
         print(f"   → Found {len(routes)} alternatives")

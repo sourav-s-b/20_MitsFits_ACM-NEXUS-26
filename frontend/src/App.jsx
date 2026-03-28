@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  MapContainer, TileLayer, Marker, Polyline, Circle, useMap, Tooltip
+  MapContainer, TileLayer, Marker, Polyline, Circle, useMap, Tooltip, useMapEvents
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -458,10 +458,6 @@ const AnalyticsTab = ({ fleet }) => {
   );
 };
 
-<<<<<<< HEAD
-=======
-
->>>>>>> f0be9b8f0d07d2b46e7c8f4ef3597d1c1c6739d1
 // ==========================================
 // MAIN APP COMPONENT
 // ==========================================
@@ -952,11 +948,7 @@ export default function App({ onLogout }) {
         {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} setPickingMode={setPickingMode} pickingMode={pickingMode} />}
         {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
-<<<<<<< HEAD
-  { activeTab === 'account' && <AccountTab onLogout={onLogout} /> }
-=======
-        {activeTab === 'account' && <AccountTab />}
->>>>>>> f0be9b8f0d07d2b46e7c8f4ef3597d1c1c6739d1
+        {activeTab === 'account' && <AccountTab onLogout={onLogout} />}
       </main >
     </div >
   );

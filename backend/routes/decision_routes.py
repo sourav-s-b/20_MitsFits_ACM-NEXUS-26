@@ -161,7 +161,7 @@ async def get_reroute(shipment_id: str):
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=5&travelMode=truck"
-            f"&alternativeType=anyRoute&minDeviationDistance=0&minDeviationTime=0"
+            f"&alternativeType=anyRoute"
         )
         print(f"\n[Routing Intelligence] Requesting Alternatives...")
         print(f"   → URL: {url}")
