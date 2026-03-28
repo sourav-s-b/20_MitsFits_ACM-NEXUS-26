@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 import httpx
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from live_store import get_shipment, set_shipment
 from database import save_shipment
 from pydantic import BaseModel
@@ -12,7 +12,7 @@ router = APIRouter()
 # =========================
 # LOAD ENV VARIABLES
 # =========================
-load_dotenv()
+load_dotenv(find_dotenv(), override=True)
 TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY")
 
 if not TOMTOM_API_KEY:

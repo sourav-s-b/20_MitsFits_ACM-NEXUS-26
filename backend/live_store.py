@@ -49,6 +49,7 @@ def _default_shipment(shipment_id: str) -> dict:
         "critical_since": None,
         "speed_kmh": 85,
         "junction_dist_m": 500,
+        "auto_pilot": False,
         "auto_reroute_armed": False,
         "auto_reroute_deadline": None,
         "last_auto_reroute_time": 0,

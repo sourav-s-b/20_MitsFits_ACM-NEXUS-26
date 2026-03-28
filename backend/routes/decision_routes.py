@@ -235,6 +235,10 @@ async def confirm_reroute(shipment_id: str, selection: RouteSelection):
     shipment["active_route"] = selection.route_id
     shipment["status"]       = "REROUTED"
     shipment["risk_score"]   = 0.2
+    # Reset signals so risk calculation drops immediately on new path
+    shipment["signals"] = {"traffic_delay": 0, "weather_score": 0.0}
+    if "weather" in shipment:
+        shipment["weather"]["score"] = 0.0
 
     # Update active route polyline so the map redraws
     new_route_found = False
@@ -270,6 +274,31 @@ async def confirm_reroute(shipment_id: str, selection: RouteSelection):
     await manager.broadcast(shipment_id, shipment)
 
     return {"ok": True, "active_route": selection.route_id, "route_updated": new_route_found}
+
+# ══════════════════════════════════════════
+# POST /autopilot — Toggle AI Override
+# ══════════════════════════════════════════
+class AutopilotToggle(BaseModel):
+    enabled: bool
+
+@router.post("/shipments/{shipment_id}/autopilot")
+async def toggle_autopilot(shipment_id: str, payload: AutopilotToggle):
+    """
+    Enable/Disable aggressive automatic routing validation.
+    Overrides the manual confirm button completely when active.
+    """
+    shipment = get_shipment(shipment_id)
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+        
+    shipment["auto_pilot"] = payload.enabled
+    
+    set_shipment(shipment_id, shipment)
+    save_shipment(shipment)
+    log_audit_event(shipment_id, time.strftime("%H:%M"), "toggle_autopilot", shipment.get("risk_score", 0.0), f"⚙️ Autopilot set to {'ON' if payload.enabled else 'OFF'}")
+    
+    await manager.broadcast(shipment_id, shipment)
+    return {"ok": True, "auto_pilot": payload.enabled}
 
 # ══════════════════════════════════════════
 # POST /cancel-auto-reroute — SOP Override

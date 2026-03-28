@@ -820,6 +820,18 @@ export default function App({ onLogout }) {
                 <div className="risk-shipment-id">{currentShipmentId} &bull; {shipment.eta || "--"}m</div>
               </div>
             </div>
+            
+            <div style={{ marginTop: '15px', padding: '12px', background: 'rgba(0,0,0,0.3)', border: shipment.auto_pilot ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.3s' }}>
+              <span style={{ fontSize: '13px', fontWeight: 'bold', color: shipment.auto_pilot ? '#10b981' : '#94a3b8' }}>{shipment.auto_pilot ? '🚀 Autopilot Active' : '🤖 Autopilot Ready'}</span>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!shipment.auto_pilot} style={{ display: 'none' }} onChange={(e) => {
+                  fetch(`${API}/autopilot`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: e.target.checked }) });
+                }} />
+                <div style={{ width: '44px', height: '24px', background: shipment.auto_pilot ? '#10b981' : '#3f3f46', borderRadius: '12px', position: 'relative', transition: 'background 0.3s' }}>
+                  <div style={{ position: 'absolute', top: '2px', left: shipment.auto_pilot ? '22px' : '2px', width: '20px', height: '20px', background: 'white', borderRadius: '50%', transition: 'left 0.3s' }}></div>
+                </div>
+              </label>
+            </div>
           </div>
 
           {shipment.ai_reason && (
