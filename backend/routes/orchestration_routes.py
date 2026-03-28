@@ -188,6 +188,28 @@ def _rag_lookup(level: str, weather: float, traffic: float, hour: int, event_typ
         return "SOP-DELTA: Risk threshold exceeded. Execute emergency avoidance maneuver and alert delivery hub."
     return "SOP-001: All corridor conditions nominal. Continuous AI monitoring active."
 
+async def scout_route_risk(shipment_id: str, polyline: list) -> float:
+    """
+    Strategic Scout: Samples 3 points along the potential route polyline
+    and calculates an average safety risk score using the logic engine.
+    """
+    if not polyline or len(polyline) < 3:
+        return 0.5
+    
+    # Sample points at 25%, 50%, 75%
+    indices = [len(polyline) // 4, len(polyline) // 2, (3 * len(polyline)) // 4]
+    total_risk = 0.0
+    
+    # Use deterministic logic engine to 'scout' these points
+    for idx in indices:
+        point = polyline[idx]
+        p_risk = call_person2(shipment_id, point["lat"], point["lon"])
+        total_risk += p_risk["risk"]
+        
+    avg_risk = total_risk / len(indices)
+    return round(avg_risk, 3)
+
+
 async def get_reroute_options_tomtom(shipment_id: str) -> list:
     shipment = get_shipment(shipment_id)
     loc = shipment["current_location"]
@@ -215,10 +237,7 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
 
         routes = data.get("routes", [])
         print(f"   → Found {len(routes)} alternatives")
-        if routes:
-            times = [r['summary']['travelTimeInSeconds'] for r in routes]
-            print(f"   → Durations (min): {[round(t/60) for t in times]}")
-
+        
         if not routes:
             fallback_url = (
                 f"https://api.tomtom.com/routing/1/calculateRoute"
@@ -236,23 +255,44 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
         options = []
         for i, r in enumerate(routes[:5]):
             s = r["summary"]
+            polyline = [
+                {"lat": p["latitude"], "lon": p["longitude"]}
+                for p in r["legs"][0]["points"]
+            ]
+            
+            # --- Strategic Scout Integration ---
+            safety_risk = await scout_route_risk(shipment_id, polyline)
+            time_min = round(s["travelTimeInSeconds"] / 60)
+            
+            # Weighted Scoring: Lower is better (Cost Function)
+            # 35% time weight + 65% safety weight
+            strategic_score = (time_min * 0.35) + (safety_risk * 100 * 0.65)
+            
             options.append(
                 {
                     "id": f"route_{chr(65 + i)}",
-                    "travel_time_min": round(s["travelTimeInSeconds"] / 60),
+                    "travel_time_min": time_min,
                     "distance_km": round(s["lengthInMeters"] / 1000, 1),
-                    "polyline": [
-                        {"lat": p["latitude"], "lon": p["longitude"]}
-                        for p in r["legs"][0]["points"]
-                    ],
-                    "recommended": (i == 1) if len(routes) > 1 else True,
-                    "reason": "AI-recommended reroute"
-                    if i == 1
-                    else "Current traffic loaded route",
+                    "polyline": polyline,
+                    "safety_risk": safety_risk,
+                    "strategic_score": round(strategic_score, 2),
+                    "recommended": False, # Will determine below
+                    "reason": "AI-analyzed trajectory"
                 }
             )
+
+        # Final Decision: Pick the route with the lowest Strategic Cost
+        best_option = min(options, key=lambda x: x["strategic_score"])
+        best_option["recommended"] = True
+        best_option["reason"] = f"Top Choice (Safety: {best_option['safety_risk']})"
+        
+        print(f"   → Durations (min): {[o['travel_time_min'] for o in options]}")
+        print(f"   → Safety Risks: {[o['safety_risk'] for o in options]}")
+        print(f"   → [Strategic Scout] Choosing {best_option['id']} (Score: {best_option['strategic_score']})")
+
         return options
-    except Exception:
+    except Exception as e:
+        print(f"   ❌ Reroute Error: {e}")
         return []
 
 
