@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
@@ -7,6 +7,7 @@ import time
 
 from live_store import get_shipment, set_shipment
 from database import save_shipment, log_audit_event
+from websocket import manager
 
 router = APIRouter()
 
@@ -144,7 +145,7 @@ def trigger_event(shipment_id: str, event: Event):
 # GET /reroute  —  Fetch alternate routes
 # ══════════════════════════════════════════
 @router.get("/shipments/{shipment_id}/reroute")
-def get_reroute(shipment_id: str):
+async def get_reroute(shipment_id: str):
     """
     Call TomTom Routing API and return up to 2 alternative route options.
     Gracefully returns empty list if TomTom finds nothing.
@@ -159,21 +160,11 @@ def get_reroute(shipment_id: str):
         url = (
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
-            f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=5&travelMode=truck"
-            f"&routeType=fastest"
+            f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=3&travelMode=truck"
+            f"&alternativeType=anyRoute"
         )
-        print(f"\n[Routing Intelligence] Requesting Alternatives (Force Variety)...")
-        print(f"   → URL: {url}")
-        
-        resp_raw = requests.get(url, timeout=20)
-        resp     = resp_raw.json()
-        routes   = resp.get("routes", [])
-        
-        print(f"   → Result: Found {len(routes)} potential trajectories")
-
-        if routes:
-            times = [r['summary']['travelTimeInSeconds'] for r in routes]
-            print(f"   → Durations (min): {[round(t/60) for t in times]}")
+        resp   = requests.get(url, timeout=10).json()
+        routes = resp.get("routes", [])
         
         if len(routes) == 0:
             print(f"⚠️  TomTom returned 0 routes. Retrying fallback...")
@@ -216,6 +207,8 @@ def get_reroute(shipment_id: str):
     # Persist for confirm-reroute lookup
     shipment["reroute_options"] = options
     set_shipment(shipment_id, shipment)
+    # Broadcast finding alternate routes
+    await manager.broadcast(shipment_id, shipment)
 
     return {"options": options, "recommended": recommended["id"]}
 
@@ -224,7 +217,7 @@ def get_reroute(shipment_id: str):
 # POST /confirm-reroute  —  Accept a route
 # ══════════════════════════════════════════
 @router.post("/shipments/{shipment_id}/confirm-reroute")
-def confirm_reroute(shipment_id: str, selection: RouteSelection):
+async def confirm_reroute(shipment_id: str, selection: RouteSelection):
     """
     Apply the chosen alternate route, update route polyline, lower risk.
     """
@@ -263,8 +256,37 @@ def confirm_reroute(shipment_id: str, selection: RouteSelection):
     set_shipment(shipment_id, shipment)
     save_shipment(shipment)
     log_audit_event(shipment_id, time.strftime("%H:%M"), "confirm_reroute", 0.2, reason)
+    
+    # Broadcast the successful reroute immediately
+    await manager.broadcast(shipment_id, shipment)
 
     return {"ok": True, "active_route": selection.route_id, "route_updated": new_route_found}
+
+# ══════════════════════════════════════════
+# POST /cancel-auto-reroute — SOP Override
+# ══════════════════════════════════════════
+@router.post("/shipments/{shipment_id}/cancel-auto-reroute")
+async def cancel_auto_reroute(shipment_id: str):
+    """
+    Driver taps Cancel to override the 5s auto-reroute countdown.
+    Disarms the countdown and allows manual flight rules.
+    """
+    shipment = get_shipment(shipment_id)
+    if not shipment:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+        
+    shipment["auto_reroute_armed"] = False
+    shipment["auto_reroute_deadline"] = None
+    # Reset critical timer so it doesn't instantly retrigger while they rethink
+    shipment["critical_since"] = time.time() + 60  
+    
+    set_shipment(shipment_id, shipment)
+    save_shipment(shipment)
+    log_audit_event(shipment_id, time.strftime("%H:%M"), "sop_override", shipment.get("risk_score", 0.0), "👨‍✈️ Driver cancelled auto-reroute (SOP Override)")
+    
+    await manager.broadcast(shipment_id, shipment)
+    return {"ok": True, "message": "Auto-reroute cancelled. Manual flight rules applied."}
+
 
 
 # ══════════════════════════════════════════

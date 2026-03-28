@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from live_store import get_shipment, set_shipment
 from database import log_audit_event
+from websocket import manager
 
 router = APIRouter()
 load_dotenv()
@@ -200,8 +201,8 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
-            f"&traffic=true&maxAlternatives=5&travelMode=truck"
-            f"&alternativeType=anyRoute&minDeviationDistance=0"
+            f"&traffic=true&maxAlternatives=3&travelMode=truck"
+            f"&alternativeType=anyRoute"
         )
         print(f"\n[Simulator Shadow] Pre-scanning paths for {shipment_id}...")
         async with httpx.AsyncClient() as client:
@@ -326,6 +327,9 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None, e
 
     set_shipment(shipment_id, shipment)
     log_audit_event(shipment_id, time.strftime("%H:%M"), "pipeline_run", risk, reason)
+
+    # Broadcast updated state to all UI clients
+    await manager.broadcast(shipment_id, shipment)
 
 
 # ══════════════════════════════════════════════════════

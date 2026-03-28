@@ -14,7 +14,7 @@ const WS_BASE_URL = "ws://127.0.0.1:8000";
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/zdist/images/marker-icon.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
@@ -290,182 +290,6 @@ const AnalyticsTab = ({ fleet }) => {
   );
 };
 
-// ==========================================
-// COLLISION AVOIDANCE TAB
-// ==========================================
-const CollisionTab = ({ fleet }) => {
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [lookahead, setLookahead] = useState(3);
-  const [safeDist, setSafeDist] = useState(1.0);
-  const [autoMode, setAutoMode] = useState(false);
-  const autoRef = useRef(null);
-
-  // Build payload from live fleet data
-  const buildPayload = () => {
-    const trucks = fleet
-      .filter(f => f.current_location)
-      .map(f => ({
-        shipment_id: f.shipment_id,
-        lat: f.current_location.lat ?? f.current_location.latitude,
-        lon: f.current_location.lon ?? f.current_location.longitude,
-        speed_kmh: 60,
-        // Assign a demo heading based on shipment_id hash for visual variety
-        heading_deg: (f.shipment_id.charCodeAt(f.shipment_id.length - 1) * 37) % 360,
-      }));
-    return { trucks, lookahead_minutes: lookahead, safe_distance_km: safeDist };
-  };
-
-  const runPrediction = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${BASE_URL}/collision/predict`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
-      });
-      const data = await res.json();
-      setResult(data);
-    } catch (e) {
-      console.error("Collision predict failed:", e);
-    }
-    setLoading(false);
-  };
-
-  // Auto-scan every 5s
-  useEffect(() => {
-    if (autoMode) {
-      runPrediction();
-      autoRef.current = setInterval(runPrediction, 5000);
-    } else {
-      clearInterval(autoRef.current);
-    }
-    return () => clearInterval(autoRef.current);
-  }, [autoMode, fleet, lookahead, safeDist]);
-
-  const severityColor = (s) => s === "HIGH" ? "#ef4444" : s === "MODERATE" ? "#f59e0b" : "#22d3ee";
-
-  return (
-    <div className="tab-pane">
-      <h1>🛡️ Predictive Collision Avoidance</h1>
-      <p>Predict inter-truck conflicts 2–5 minutes before they occur and auto-suggest reroutes.</p>
-
-      {/* Controls */}
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "24px", alignItems: "flex-end" }}>
-        <div>
-          <label style={{ display: "block", marginBottom: "6px", fontSize: "11px", color: "var(--text-muted)" }}>LOOKAHEAD (min)</label>
-          <input type="number" min="1" max="10" value={lookahead}
-            onChange={e => setLookahead(Number(e.target.value))}
-            style={{ width: "80px", padding: "8px", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)", color: "white", borderRadius: "4px" }} />
-        </div>
-        <div>
-          <label style={{ display: "block", marginBottom: "6px", fontSize: "11px", color: "var(--text-muted)" }}>SAFE DISTANCE (km)</label>
-          <input type="number" min="0.1" max="5" step="0.1" value={safeDist}
-            onChange={e => setSafeDist(Number(e.target.value))}
-            style={{ width: "90px", padding: "8px", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)", color: "white", borderRadius: "4px" }} />
-        </div>
-        <button className="nexus-btn btn-cyan" onClick={runPrediction} disabled={loading}>
-          {loading ? "⏳ Scanning..." : "⚡ Run Scan"}
-        </button>
-        <button
-          className={`nexus-btn ${autoMode ? "btn-danger" : "btn-green"}`}
-          onClick={() => setAutoMode(v => !v)}>
-          {autoMode ? "⏹ Stop Auto-Scan" : "🔄 Auto-Scan (5s)"}
-        </button>
-      </div>
-
-      {/* Fleet summary */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <div className="nexus-card">
-          <div className="nexus-card-title">Trucks Analyzed</div>
-          <div style={{ fontSize: "28px", fontWeight: "bold", color: "#6366f1" }}>
-            {result ? result.total_trucks_analyzed : fleet.filter(f => f.current_location).length}
-          </div>
-        </div>
-        <div className="nexus-card" style={{ borderColor: result && !result.all_clear ? "#ef4444" : "" }}>
-          <div className="nexus-card-title">Collision Risks</div>
-          <div style={{ fontSize: "28px", fontWeight: "bold", color: result && !result.all_clear ? "#ef4444" : "#10b981" }}>
-            {result ? result.collision_pairs.length : "—"}
-          </div>
-        </div>
-        <div className="nexus-card">
-          <div className="nexus-card-title">System Status</div>
-          <div style={{
-            fontSize: "14px", fontWeight: "bold", marginTop: "6px",
-            color: result ? (result.all_clear ? "#10b981" : "#ef4444") : "#888"
-          }}>
-            {result ? (result.all_clear ? "✅ ALL CLEAR" : "⚠️ RISKS DETECTED") : "Not scanned yet"}
-          </div>
-        </div>
-        <div className="nexus-card">
-          <div className="nexus-card-title">Last Scan</div>
-          <div style={{ fontSize: "20px", fontWeight: "bold", color: "#22d3ee" }}>
-            {result ? result.timestamp : "—"}
-          </div>
-        </div>
-      </div>
-
-      {/* Collision pairs */}
-      {result && result.collision_pairs.length === 0 && (
-        <div className="nexus-card" style={{ borderColor: "#10b981", background: "rgba(16,185,129,0.05)", textAlign: "center", padding: "32px" }}>
-          <div style={{ fontSize: "32px", marginBottom: "8px" }}>✅</div>
-          <div style={{ color: "#10b981", fontWeight: "bold", fontSize: "16px" }}>All Clear — No Collision Risks Detected</div>
-          <p style={{ color: "#888", marginTop: "8px", fontSize: "13px" }}>
-            All {result.total_trucks_analyzed} trucks have safe predicted separations within the {result.lookahead_minutes}-minute window.
-          </p>
-        </div>
-      )}
-
-      {result && result.collision_pairs.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {result.collision_pairs.map((pair, i) => (
-            <div key={i} className="nexus-card" style={{ borderColor: severityColor(pair.severity), background: `rgba(${pair.severity === "HIGH" ? "239,68,68" : pair.severity === "MODERATE" ? "245,158,11" : "34,211,238"},0.05)` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
-                <div>
-                  <div style={{ color: severityColor(pair.severity), fontWeight: "bold", fontSize: "14px", marginBottom: "6px" }}>
-                    {pair.severity === "HIGH" ? "🔴" : pair.severity === "MODERATE" ? "🟡" : "🔵"} {pair.severity} RISK — {pair.truck_a} ↔ {pair.truck_b}
-                  </div>
-                  <div style={{ color: "#ccc", fontSize: "12px", marginBottom: "4px" }}>
-                    Current gap: <b style={{ color: "white" }}>{pair.current_distance_km} km</b>
-                    &nbsp;→ Predicted in {result.lookahead_minutes}min: <b style={{ color: severityColor(pair.severity) }}>{pair.predicted_distance_km} km</b>
-                    &nbsp;(safe: {result.safe_distance_km} km)
-                  </div>
-                  <div style={{ color: "#22d3ee", fontSize: "12px", marginTop: "6px" }}>
-                    💡 {pair.suggested_action}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "28px", fontWeight: "bold", color: severityColor(pair.severity) }}>
-                    {Math.round(pair.collision_probability * 100)}%
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#888" }}>collision prob.</div>
-                  <div style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
-                    Conflict in ~{pair.time_to_conflict_min}min
-                  </div>
-                </div>
-              </div>
-
-              {/* Conflict zone */}
-              <div style={{ marginTop: "12px", padding: "8px", background: "rgba(0,0,0,0.3)", borderRadius: "4px", fontSize: "11px", color: "#888", fontFamily: "monospace" }}>
-                Conflict zone: {pair.conflict_zone.lat}°N, {pair.conflict_zone.lon}°E
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!result && (
-        <div className="nexus-card" style={{ textAlign: "center", padding: "40px", color: "#888" }}>
-          <div style={{ fontSize: "40px", marginBottom: "12px" }}>🛡️</div>
-          <p>Click <b style={{ color: "white" }}>Run Scan</b> to analyse current fleet positions for collision risks.</p>
-          <p style={{ fontSize: "12px", marginTop: "8px" }}>
-            Uses dead-reckoning to predict where each truck will be in {lookahead} minutes.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
 
 // ==========================================
 // MAIN APP COMPONENT
@@ -482,6 +306,8 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connError, setConnError] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const audioPlayed = useRef(false);
   const started = useRef(false);
   const currentIdRef = useRef(currentShipmentId);
 
@@ -559,6 +385,87 @@ export default function App() {
     return () => { if (ws) ws.close(); clearTimeout(reconnectTimer); };
   }, [currentShipmentId, API, WS_URL]);
 
+  // ── Polling Fallback (if WS fails) ──
+  useEffect(() => {
+    if (!connError) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API}/state`);
+        const data = await res.json();
+        setShipment(data);
+        if (data.reroute_options && data.reroute_options.length > 0 && reroutes.length === 0) {
+          setReroutes(data.reroute_options);
+        }
+      } catch (e) { console.error("Polling error:", e); }
+    };
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [connError, API, reroutes.length]);
+
+  const handleConfirmReroute = async (routeId) => {
+    try {
+      const resp = await fetch(`${API}/confirm-reroute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ route_id: routeId })
+      });
+      if (resp.ok) {
+        setReroutes([]);
+        setSelected(null);
+        // Immediate refresh to ensure map sync
+        const stateRes = await fetch(`${API}/state`);
+        const stateData = await stateRes.json();
+        setShipment(stateData);
+      }
+    } catch (e) {
+      console.error("Confirmation Error:", e);
+    }
+  };
+
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 beep
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    let timer;
+    if (shipment?.auto_reroute_armed && shipment?.auto_reroute_deadline) {
+      const updateTimer = () => {
+        const remaining = Math.max(0, Math.ceil(shipment.auto_reroute_deadline - (Date.now() / 1000)));
+        setCountdown(remaining);
+      };
+      updateTimer();
+      timer = setInterval(updateTimer, 500);
+
+      // Audio Cue
+      if (!audioPlayed.current) {
+        playBeep();
+        audioPlayed.current = true;
+      }
+    } else {
+      setCountdown(null);
+      audioPlayed.current = false;
+    }
+    return () => clearInterval(timer);
+  }, [shipment?.auto_reroute_armed, shipment?.auto_reroute_deadline]);
+
+  const handleCancelAutoReroute = async () => {
+    try {
+      await fetch(`${API}/cancel-auto-reroute`, { method: "POST" });
+    } catch(e) { console.error(e); }
+  };
+
+
   // Handle Tab Switch Actions
   const handleSelectShipment = (id) => {
     setCurrentShipmentId(id);
@@ -608,9 +515,6 @@ export default function App() {
         </li>
         <li className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>
           📦 Delivery History
-        </li>
-        <li className={activeTab === 'collision' ? 'active' : ''} onClick={() => setActiveTab('collision')}>
-          🛡️ Collision AI
         </li>
         <li className={activeTab === 'account' ? 'active' : ''} onClick={() => setActiveTab('account')}>
           👤 My Account
@@ -818,11 +722,26 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <button className="onyx-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
-                onClick={() => {
-                  fetch(`${API}/confirm-reroute`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ route_id: selected }) })
-                  setReroutes([]); setSelected(null);
-                }}>Confirm Route</button>
+              {shipment?.auto_reroute_armed && countdown !== null ? (
+                <div style={{ textAlign: 'center', marginTop: '15px', padding: '15px', border: '1px solid #ff003c', borderRadius: '8px', background: 'rgba(255,0,60,0.05)', boxShadow: '0 0 15px rgba(255,0,60,0.3)' }}>
+                  <h4 style={{ color: '#ff003c', margin: '0 0 8px 0', animation: 'pulse 1s infinite' }}>⚠️ Critical Hazard Ahead</h4>
+                  <p style={{ color: '#fca5a5', fontSize: '13px', margin: '0 0 15px 0' }}>Rerouting in {countdown}s...</p>
+                  
+                  <div style={{ position: 'relative', width: '64px', height: '64px', margin: '0 auto 15px auto' }}>
+                    <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#ff003c" strokeWidth="3" strokeDasharray={`${((5 - countdown) / 5) * 100}, 100`} style={{ transition: 'stroke-dasharray 0.5s linear' }} />
+                    </svg>
+                  </div>
+                  
+                  <button className="onyx-btn" onClick={handleCancelAutoReroute} style={{ width: '100%', background: '#ff003c', color: 'white', fontWeight: 'bold' }}>Cancel (SOP Override)</button>
+                </div>
+              ) : (
+                <button className="onyx-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
+                    onClick={() => handleConfirmReroute(selected)}>
+                  Confirm Route
+                </button>
+              )}
             </div>
           )}
         </aside>
@@ -840,7 +759,6 @@ export default function App() {
         {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} />}
         {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
-        {activeTab === 'collision' && <CollisionTab fleet={fleet} />}
         {activeTab === 'account' && <AccountTab />}
       </main>
     </div>
