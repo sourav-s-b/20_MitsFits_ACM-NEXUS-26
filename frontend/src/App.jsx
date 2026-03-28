@@ -321,91 +321,7 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
   );
 };
 
-// ==========================================
-// COLLISION AVOIDANCE TAB (RESTORED)
-// ==========================================
-const CollisionTab = ({ fleet, BASE_URL }) => {
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [lookahead, setLookahead] = useState(3);
-  const [safeDist, setSafeDist] = useState(1.0);
-  const [autoMode, setAutoMode] = useState(false);
-  const autoRef = useRef(null);
 
-  const buildPayload = () => {
-    const trucks = fleet
-      .filter(f => f.current_location)
-      .map(f => ({
-        shipment_id: f.shipment_id,
-        lat: f.current_location.lat ?? f.current_location.latitude,
-        lon: f.current_location.lon ?? f.current_location.longitude,
-        speed_kmh: 60,
-        heading_deg: (f.shipment_id.charCodeAt(f.shipment_id.length - 1) * 37) % 360,
-      }));
-    return { trucks, lookahead_minutes: lookahead, safe_distance_km: safeDist };
-  };
-
-  const runPrediction = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${BASE_URL}/collision/predict`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
-      });
-      const data = await res.json();
-      setResult(data);
-    } catch (e) {
-      console.error("Collision predict failed:", e);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (autoMode) {
-      runPrediction();
-      autoRef.current = setInterval(runPrediction, 5000);
-    } else {
-      clearInterval(autoRef.current);
-    }
-    return () => clearInterval(autoRef.current);
-  }, [autoMode, fleet, lookahead, safeDist]);
-
-  const severityColor = (s) => s === "HIGH" ? "#ef4444" : s === "MODERATE" ? "#f59e0b" : "#22d3ee";
-
-  return (
-    <div className="tab-pane">
-      <h1>🛡️ Predictive Collision Avoidance</h1>
-      <p>Analyze the entire fleet for potential proximity violations in the next 5 minutes.</p>
-
-      <div style={{ display: "flex", gap: "16px", marginBottom: "24px" }}>
-        <button className="onyx-btn btn-cyan" onClick={runPrediction} disabled={loading}>{loading ? "⏳ Scanning..." : "⚡ Run Scan"}</button>
-        <button className={`onyx-btn ${autoMode ? 'btn-danger' : 'btn-green'}`} onClick={() => setAutoMode(!autoMode)}>{autoMode ? "⏹ Stop Auto" : "🔄 Auto-Scan"}</button>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        <div className="onyx-card">
-          <div className="onyx-card-title">Analyzed</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{result ? result.total_trucks_analyzed : 0}</div>
-        </div>
-        <div className="onyx-card">
-          <div className="onyx-card-title">Risks</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444' }}>{result ? result.collision_pairs.length : 0}</div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {result?.collision_pairs.map((pair, i) => (
-          <div key={i} className="onyx-card" style={{ borderLeft: `4px solid ${severityColor(pair.severity)}` }}>
-            <div style={{ fontWeight: 'bold' }}>{pair.truck_a} ↔ {pair.truck_b} ({pair.severity})</div>
-            <div style={{ fontSize: '12px', color: '#94a3b8' }}>Gap: {pair.predicted_distance_km}km in {pair.time_to_conflict_min} min</div>
-            <div style={{ color: '#22d3ee', marginTop: '4px' }}>💡 {pair.suggested_action}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 const AnalyticsTab = ({ fleet }) => {
   const totalDelays = fleet.reduce((acc, s) => acc + (s.signals?.traffic_delay || 0), 0);
@@ -683,9 +599,6 @@ export default function App({ onLogout }) {
         </li>
         <li className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>
           📦 Delivery History
-        </li>
-        <li className={activeTab === 'collision' ? 'active' : ''} onClick={() => setActiveTab('collision')}>
-          🛡️ Collision AI
         </li>
         <li className={activeTab === 'account' ? 'active' : ''} onClick={() => setActiveTab('account')}>
           👤 My Account

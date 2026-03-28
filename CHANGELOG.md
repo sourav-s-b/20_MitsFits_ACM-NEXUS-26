@@ -230,4 +230,22 @@
 - progress/10.md (Created)
 
 ### Issues Faced
-- Accidental branch merges overwriting prior feature completions silently breaking React UI component polls.
+
+## 08:06
+
+### Features Added
+- **Global Geocoding Hub**: Integrated TomTom Search API (`geocoding_routes.py`) enabling dispatching via city names (e.g., "Mumbai", "London") instead of manual coordinates.
+- **Interactive Map Dispatch**: Restored full interactive pinning capability; users can now click the live map to set origin/destination targets with millisecond precision.
+- **Max-Diversity Routing Engine**: Stripped restrictive deviation anchors from TomTom's `calculateRoute` calls, successfully restoring 5-path trajectory visibility for demo-critical "Shadow Mode" rerouting.
+- **Status Dashboard Restoration**: Fully reconstructed the sidebar navigation and `Collision AI` monitoring panel that were lost during recent merge regressions.
+
+### Files Modified
+- backend/server.py
+- backend/routes/geocoding_routes.py
+- backend/routes/decision_routes.py
+- backend/routes/orchestration_routes.py
+- frontend/src/App.jsx
+
+### Issues Faced
+- **Resolved Frontend Crash**: Fixed `Uncaught ReferenceError: useMapEvents` in `App.jsx` caused by a missing library import during manual merge resolution.
+- **API Key Parameter Collision**: Identified that `minDeviationDistance=0` was paradoxically causing TomTom to return zero alternatives for near-origin route recalculations. Removed parameters to allow standard multi-path discovery.
