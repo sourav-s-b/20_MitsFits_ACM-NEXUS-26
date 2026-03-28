@@ -19,14 +19,20 @@ async def move_truck(shipment: dict):
     if shipment["route"] and shipment["route_index"] < len(shipment["route"]):
         # Move to next point
         shipment["current_location"] = shipment["route"][shipment["route_index"]]
-        shipment["route_index"] += 1
+        shipment["route_index"] += 30
         
         # Validation Log: occasional position reporting
-        if shipment["route_index"] % 20 == 0:
+        if shipment["route_index"] % 60 == 0:
             print(f"[Simulator] {shipment['shipment_id']} at point {shipment['route_index']}/{len(shipment['route'])} (Status: {shipment['status']})")
 
 
+import random
+
 async def update_signals(shipment: dict):
+    # Mock dynamic telemetry for Gate 3 (Driver Context)
+    shipment["speed_kmh"] = random.randint(70, 95)
+    shipment["junction_dist_m"] = random.randint(150, 400)
+
     if shipment["status"] in ("HIGH RISK", "WARNING", "REROUTED"):
         return
 
@@ -40,6 +46,7 @@ async def update_signals(shipment: dict):
 
         if loc and dest:
             weather_data = await fetch_weather(loc["lat"], loc["lon"])
+            shipment["weather"] = weather_data
             shipment["signals"]["weather_score"] = weather_data.get("score", 0.0)
 
             delay = await fetch_tomtom_traffic(
@@ -74,47 +81,80 @@ async def compute_risk(shipment: dict):
         shipment["is_compound"] = p2_result.get("is_compound", False)
         shipment["is_night"] = p2_result.get("is_night", False)
 
+    # Gate 2 Timer Tracking
+    if shipment["risk_score"] >= 0.85:
+        if not shipment.get("critical_since"):
+            shipment["critical_since"] = time.time()
+    else:
+        shipment["critical_since"] = None
+
     # --- Decision Layer: Autonomous Action ---
     if shipment["risk_score"] >= 0.4:
-        # Only trigger new reroute if not already rerouted or if risk is still high
-        if shipment["status"] != "REROUTED":
+        # Only trigger new reroute options if they don't exist yet
+        # Trigger reroute options if they don't exist OR if we only have 1 (to push for diversity)
+        if shipment["status"] != "REROUTED" and (not shipment.get("reroute_options") or len(shipment.get("reroute_options", [])) < 3):
             shipment["status"] = "HIGH RISK"
+            
+            # Fetch options unconditionally so dispatcher can see them manually
             if not shipment.get("reroute_options"):
                 options = await get_reroute_options_tomtom(shipment["shipment_id"])
                 shipment["reroute_options"] = options
                 shipment["shadow_route_ready"] = True
+                print(f"[Simulator] Reroute options generated for {shipment['shipment_id']}.")
 
-                # Autonomous Decision: Switch to fastest route
-                if options:
-                    best_option = min(options, key=lambda x: x["travel_time_min"])
-                    print(f"[Simulator] Autonomous Reroute for {shipment['shipment_id']} -> {best_option['id']}")
-                    
-                    shipment["active_route"] = best_option["id"]
-                    shipment["route"] = best_option["polyline"]
-                    shipment["route_index"] = 0
-                    shipment["status"] = "REROUTED"
-                    
-                    reason = f"🤖 Autonomous intervention: Switched to {best_option['id']} (Fastest)"
-                    shipment["alerts"].append({
-                        "timestamp": time.strftime("%H:%M"),
-                        "reason": reason,
-                        "risk_score": 0.2,
-                        "severity": "REROUTED",
-                        "event_type": "auto_reroute"
-                    })
-                    from database import log_audit_event
-                    log_audit_event(shipment["shipment_id"], time.strftime("%H:%M"), "auto_reroute", 0.2, reason)
+            # GATES 2 & 3: Stable Window and Context
+            stable_passed = shipment.get("critical_since") and (time.time() - shipment["critical_since"] >= 15)
+            velocity_passed = shipment.get("speed_kmh", 0) <= 80 and shipment.get("junction_dist_m", 0) >= 200
+
+            # GATE 1: Validated Auto-Reroute (Risk Delta > 0.3)
+            # If the new route is only slightly better, don't trigger the blind countdown at all.
+            # It just waits for the driver's manual choice.
+            new_risk = 0.45 # Mocked alternative route risk
+            risk_delta_passed = (shipment["risk_score"] - new_risk) > 0.3
+
+            if shipment.get("reroute_options") and stable_passed and velocity_passed and risk_delta_passed:
+                if not shipment.get("auto_reroute_armed"):
+                    if time.time() - shipment.get("last_auto_reroute_time", 0) > 300:
+                        shipment["auto_reroute_armed"] = True
+                        shipment["auto_reroute_deadline"] = time.time() + 5
+                        print(f"🚨 [Simulator] Gates 1-3 Passed for {shipment['shipment_id']}. Armed 5s auto-reroute countdown.")
+
+            if shipment.get("auto_reroute_armed") and shipment.get("auto_reroute_deadline"):
+                if time.time() >= shipment["auto_reroute_deadline"]:
+                    options = shipment["reroute_options"]
+                    if options:
+                        best_option = next((o for o in options if o.get("recommended")), options[0])
+                        print(f"[Simulator] Auto-confirming reroute for {shipment['shipment_id']} -> {best_option['id']} at T-0.")
+                        
+                        shipment["active_route"] = best_option["id"]
+                        shipment["route"] = best_option["polyline"]
+                        shipment["route_index"] = 0
+                        shipment["status"] = "REROUTED"
+                        shipment["shadow_route_ready"] = False
+                        shipment["reroute_options"] = []
+                        shipment["auto_reroute_armed"] = False
+                        shipment["auto_reroute_deadline"] = None
+                        shipment["last_auto_reroute_time"] = time.time()
+                        shipment["critical_since"] = None
+                        
+                        reason = f"🤖 Autonomous intervention: Switched to {best_option['id']} (Gates 1-3 Passed)"
+                        shipment["alerts"].append({
+                            "timestamp": time.strftime("%H:%M"),
+                            "reason": reason,
+                            "risk_score": 0.2,
+                            "severity": "REROUTED",
+                            "event_type": "auto_reroute"
+                        })
+                        from database import log_audit_event
+                        log_audit_event(shipment["shipment_id"], time.strftime("%H:%M"), "auto_reroute", 0.2, reason)
+
     elif shipment["risk_score"] > 0.2:
-        shipment["status"] = "WARNING"
+        if shipment["status"] != "REROUTED":
+            shipment["status"] = "WARNING"
     else:
         # Recovery to SAFE: allow even REROUTED to go back to SAFE if risk is very low
-        if shipment["risk_score"] < 0.2:
+        if shipment["risk_score"] < 0.2 and shipment["status"] != "REROUTED":
              shipment["status"] = "SAFE"
-        # If they were rerouted but risk is now safe, we keep "REROUTED" 
-        # as a status badge but the intelligence is nominal.
-        if shipment["status"] == "REROUTED" and shipment["risk_score"] < 0.2:
-             # Potentially add a "REROUTE SUCCESSFUL" indicator
-             pass
 
 
 async def process_shipment(shipment: dict):
@@ -134,4 +174,4 @@ async def run_simulation():
         if shipments:
             await asyncio.gather(*(process_shipment(s) for s in shipments))
         
-        await asyncio.sleep(2)  # Faster polling for real-time feel
+        await asyncio.sleep(1)  # Real-time heartbeat (1Hz)

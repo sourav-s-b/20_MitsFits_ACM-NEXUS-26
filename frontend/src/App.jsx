@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  MapContainer, TileLayer, Marker, Polyline, Circle, useMap, Tooltip
+  MapContainer, TileLayer, Marker, Polyline, Circle, useMap, Tooltip, useMapEvents
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -17,6 +17,51 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
+
+const LocationSearch = ({ placeholder, onSelect, BASE_URL }) => {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (query.length < 3) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/geocoding/search?query=${query}`);
+        const data = await res.json();
+        setResults(data);
+      } catch (e) { console.error(e); }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [query, BASE_URL]);
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={query}
+        onChange={e => { setQuery(e.target.value); setShow(true); }}
+        onFocus={() => setShow(true)}
+        style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }}
+      />
+      {show && results.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, background: '#1e293b', border: '1px solid var(--border)', borderRadius: '4px', marginTop: '4px', overflow: 'hidden' }}>
+          {results.map((r, i) => (
+            <div
+              key={i}
+              className="search-result-item"
+              onClick={() => { onSelect(r); setQuery(r.label); setShow(false); }}
+              style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', borderBottom: i < results.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+            >
+              {r.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Icons
 const truckIcon = new L.DivIcon({
@@ -148,7 +193,7 @@ const HistoryTab = ({ currentShipmentId, riskColor }) => {
   );
 };
 
-const AccountTab = () => {
+const AccountTab = ({ onLogout }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -168,17 +213,32 @@ const AccountTab = () => {
         <p><b>Name:</b> {user.name}</p>
         <p><b>Role:</b> {user.role}</p>
         <p><b>Auth Token:</b> <code className="mono">{user.token.slice(0, 8)}...</code></p>
-        <button className="onyx-btn btn-danger" style={{ marginTop: '15px', width: '100%' }}>Sign Out</button>
+        <button
+          type="button"
+          className="onyx-btn btn-danger"
+          style={{ marginTop: '15px', width: '100%' }}
+          onClick={() => typeof onLogout === "function" && onLogout()}
+        >
+          Sign Out
+        </button>
       </div>
     </div>
   );
 };
 
-const ScheduleTab = ({ BASE_URL, onDispatched }) => {
+const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) => {
   const [shipmentId, setShipmentId] = useState(`SHP-${Math.floor(Math.random() * 9999)}`);
   const [origin, setOrigin] = useState("19.0760,72.8777");
   const [target, setTarget] = useState("18.5204,73.8567");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (pickingMode === 'origin_selected') {
+      setPickingMode(null);
+    } else if (pickingMode === 'target_selected') {
+      setPickingMode(null);
+    }
+  }, [origin, target]);
 
   const presets = [
     { label: "Kochi → Bangalore", o: "9.9312,76.2673", d: "12.9716,77.5946" },
@@ -207,22 +267,44 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
       <h1>➕ Dispatch Shipment</h1>
       <p>Schedule a new transport routing via the {BRANDING.fullName} logistics engine.</p>
 
-      <div className="onyx-card" style={{ maxWidth: '500px', padding: '24px' }}>
-        <form onSubmit={handleDispatch} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="onyx-card" style={{ maxWidth: '600px', padding: '24px' }}>
+        <form onSubmit={handleDispatch} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>SHIPMENT ID</label>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>SHIPMENT ID</label>
             <input type="text" value={shipmentId} onChange={e => setShipmentId(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>ORIGIN (Lat,Lon)</label>
-            <input type="text" value={origin} onChange={e => setOrigin(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>DESTINATION (Lat,Lon)</label>
-            <input type="text" value={target} onChange={e => setTarget(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>ORIGIN (Search or Pin)</label>
+              <LocationSearch BASE_URL={BASE_URL} placeholder="Search origin..." onSelect={r => setOrigin(`${r.lat},${r.lon}`)} />
+              <button
+                type="button"
+                className={`onyx-btn ${pickingMode === 'origin' ? 'btn-danger' : 'btn-cyan'}`}
+                style={{ width: '100%', marginTop: '8px', fontSize: '12px', padding: '8px' }}
+                onClick={() => setPickingMode(pickingMode === 'origin' ? null : 'origin')}
+              >
+                {pickingMode === 'origin' ? '🛑 Cancel Pinning' : '📍 Pin on Map'}
+              </button>
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Current: {origin}</div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>DESTINATION (Search or Pin)</label>
+              <LocationSearch BASE_URL={BASE_URL} placeholder="Search destination..." onSelect={r => setTarget(`${r.lat},${r.lon}`)} />
+              <button
+                type="button"
+                className={`onyx-btn ${pickingMode === 'target' ? 'btn-danger' : 'btn-cyan'}`}
+                style={{ width: '100%', marginTop: '8px', fontSize: '12px', padding: '8px' }}
+                onClick={() => setPickingMode(pickingMode === 'target' ? null : 'target')}
+              >
+                {pickingMode === 'target' ? '🛑 Cancel Pinning' : '🏁 Pin on Map'}
+              </button>
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Current: {target}</div>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', margin: '10px 0', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', margin: '5px 0', flexWrap: 'wrap' }}>
             {presets.map(p => (
               <button type="button" key={p.label} className="map-tag map-tag-alt" style={{ cursor: 'pointer' }} onClick={() => { setOrigin(p.o); setTarget(p.d); }}>
                 {p.label}
@@ -230,10 +312,96 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
             ))}
           </div>
 
-          <button type="submit" className="onyx-btn btn-green" disabled={loading} style={{ marginTop: '16px', padding: '14px' }}>
+          <button type="submit" className="onyx-btn btn-green" disabled={loading} style={{ marginTop: '10px', padding: '14px', fontSize: '15px' }}>
             {loading ? "INITIALIZING ROUTE..." : "🚀 DISPATCH TRUCK"}
           </button>
         </form>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// COLLISION AVOIDANCE TAB (RESTORED)
+// ==========================================
+const CollisionTab = ({ fleet, BASE_URL }) => {
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [lookahead, setLookahead] = useState(3);
+  const [safeDist, setSafeDist] = useState(1.0);
+  const [autoMode, setAutoMode] = useState(false);
+  const autoRef = useRef(null);
+
+  const buildPayload = () => {
+    const trucks = fleet
+      .filter(f => f.current_location)
+      .map(f => ({
+        shipment_id: f.shipment_id,
+        lat: f.current_location.lat ?? f.current_location.latitude,
+        lon: f.current_location.lon ?? f.current_location.longitude,
+        speed_kmh: 60,
+        heading_deg: (f.shipment_id.charCodeAt(f.shipment_id.length - 1) * 37) % 360,
+      }));
+    return { trucks, lookahead_minutes: lookahead, safe_distance_km: safeDist };
+  };
+
+  const runPrediction = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/collision/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload()),
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch (e) {
+      console.error("Collision predict failed:", e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (autoMode) {
+      runPrediction();
+      autoRef.current = setInterval(runPrediction, 5000);
+    } else {
+      clearInterval(autoRef.current);
+    }
+    return () => clearInterval(autoRef.current);
+  }, [autoMode, fleet, lookahead, safeDist]);
+
+  const severityColor = (s) => s === "HIGH" ? "#ef4444" : s === "MODERATE" ? "#f59e0b" : "#22d3ee";
+
+  return (
+    <div className="tab-pane">
+      <h1>🛡️ Predictive Collision Avoidance</h1>
+      <p>Analyze the entire fleet for potential proximity violations in the next 5 minutes.</p>
+
+      <div style={{ display: "flex", gap: "16px", marginBottom: "24px" }}>
+        <button className="onyx-btn btn-cyan" onClick={runPrediction} disabled={loading}>{loading ? "⏳ Scanning..." : "⚡ Run Scan"}</button>
+        <button className={`onyx-btn ${autoMode ? 'btn-danger' : 'btn-green'}`} onClick={() => setAutoMode(!autoMode)}>{autoMode ? "⏹ Stop Auto" : "🔄 Auto-Scan"}</button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        <div className="onyx-card">
+          <div className="onyx-card-title">Analyzed</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{result ? result.total_trucks_analyzed : 0}</div>
+        </div>
+        <div className="onyx-card">
+          <div className="onyx-card-title">Risks</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444' }}>{result ? result.collision_pairs.length : 0}</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {result?.collision_pairs.map((pair, i) => (
+          <div key={i} className="onyx-card" style={{ borderLeft: `4px solid ${severityColor(pair.severity)}` }}>
+            <div style={{ fontWeight: 'bold' }}>{pair.truck_a} ↔ {pair.truck_b} ({pair.severity})</div>
+            <div style={{ fontSize: '12px', color: '#94a3b8' }}>Gap: {pair.predicted_distance_km}km in {pair.time_to_conflict_min} min</div>
+            <div style={{ color: '#22d3ee', marginTop: '4px' }}>💡 {pair.suggested_action}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -291,186 +459,9 @@ const AnalyticsTab = ({ fleet }) => {
 };
 
 // ==========================================
-// COLLISION AVOIDANCE TAB
-// ==========================================
-const CollisionTab = ({ fleet }) => {
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [lookahead, setLookahead] = useState(3);
-  const [safeDist, setSafeDist] = useState(1.0);
-  const [autoMode, setAutoMode] = useState(false);
-  const autoRef = useRef(null);
-
-  // Build payload from live fleet data
-  const buildPayload = () => {
-    const trucks = fleet
-      .filter(f => f.current_location)
-      .map(f => ({
-        shipment_id: f.shipment_id,
-        lat: f.current_location.lat ?? f.current_location.latitude,
-        lon: f.current_location.lon ?? f.current_location.longitude,
-        speed_kmh: 60,
-        // Assign a demo heading based on shipment_id hash for visual variety
-        heading_deg: (f.shipment_id.charCodeAt(f.shipment_id.length - 1) * 37) % 360,
-      }));
-    return { trucks, lookahead_minutes: lookahead, safe_distance_km: safeDist };
-  };
-
-  const runPrediction = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${BASE_URL}/collision/predict`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
-      });
-      const data = await res.json();
-      setResult(data);
-    } catch (e) {
-      console.error("Collision predict failed:", e);
-    }
-    setLoading(false);
-  };
-
-  // Auto-scan every 5s
-  useEffect(() => {
-    if (autoMode) {
-      runPrediction();
-      autoRef.current = setInterval(runPrediction, 5000);
-    } else {
-      clearInterval(autoRef.current);
-    }
-    return () => clearInterval(autoRef.current);
-  }, [autoMode, fleet, lookahead, safeDist]);
-
-  const severityColor = (s) => s === "HIGH" ? "#ef4444" : s === "MODERATE" ? "#f59e0b" : "#22d3ee";
-
-  return (
-    <div className="tab-pane">
-      <h1>🛡️ Predictive Collision Avoidance</h1>
-      <p>Predict inter-truck conflicts 2–5 minutes before they occur and auto-suggest reroutes.</p>
-
-      {/* Controls */}
-      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "24px", alignItems: "flex-end" }}>
-        <div>
-          <label style={{ display: "block", marginBottom: "6px", fontSize: "11px", color: "var(--text-muted)" }}>LOOKAHEAD (min)</label>
-          <input type="number" min="1" max="10" value={lookahead}
-            onChange={e => setLookahead(Number(e.target.value))}
-            style={{ width: "80px", padding: "8px", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)", color: "white", borderRadius: "4px" }} />
-        </div>
-        <div>
-          <label style={{ display: "block", marginBottom: "6px", fontSize: "11px", color: "var(--text-muted)" }}>SAFE DISTANCE (km)</label>
-          <input type="number" min="0.1" max="5" step="0.1" value={safeDist}
-            onChange={e => setSafeDist(Number(e.target.value))}
-            style={{ width: "90px", padding: "8px", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border)", color: "white", borderRadius: "4px" }} />
-        </div>
-        <button className="nexus-btn btn-cyan" onClick={runPrediction} disabled={loading}>
-          {loading ? "⏳ Scanning..." : "⚡ Run Scan"}
-        </button>
-        <button
-          className={`nexus-btn ${autoMode ? "btn-danger" : "btn-green"}`}
-          onClick={() => setAutoMode(v => !v)}>
-          {autoMode ? "⏹ Stop Auto-Scan" : "🔄 Auto-Scan (5s)"}
-        </button>
-      </div>
-
-      {/* Fleet summary */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <div className="nexus-card">
-          <div className="nexus-card-title">Trucks Analyzed</div>
-          <div style={{ fontSize: "28px", fontWeight: "bold", color: "#6366f1" }}>
-            {result ? result.total_trucks_analyzed : fleet.filter(f => f.current_location).length}
-          </div>
-        </div>
-        <div className="nexus-card" style={{ borderColor: result && !result.all_clear ? "#ef4444" : "" }}>
-          <div className="nexus-card-title">Collision Risks</div>
-          <div style={{ fontSize: "28px", fontWeight: "bold", color: result && !result.all_clear ? "#ef4444" : "#10b981" }}>
-            {result ? result.collision_pairs.length : "—"}
-          </div>
-        </div>
-        <div className="nexus-card">
-          <div className="nexus-card-title">System Status</div>
-          <div style={{
-            fontSize: "14px", fontWeight: "bold", marginTop: "6px",
-            color: result ? (result.all_clear ? "#10b981" : "#ef4444") : "#888"
-          }}>
-            {result ? (result.all_clear ? "✅ ALL CLEAR" : "⚠️ RISKS DETECTED") : "Not scanned yet"}
-          </div>
-        </div>
-        <div className="nexus-card">
-          <div className="nexus-card-title">Last Scan</div>
-          <div style={{ fontSize: "20px", fontWeight: "bold", color: "#22d3ee" }}>
-            {result ? result.timestamp : "—"}
-          </div>
-        </div>
-      </div>
-
-      {/* Collision pairs */}
-      {result && result.collision_pairs.length === 0 && (
-        <div className="nexus-card" style={{ borderColor: "#10b981", background: "rgba(16,185,129,0.05)", textAlign: "center", padding: "32px" }}>
-          <div style={{ fontSize: "32px", marginBottom: "8px" }}>✅</div>
-          <div style={{ color: "#10b981", fontWeight: "bold", fontSize: "16px" }}>All Clear — No Collision Risks Detected</div>
-          <p style={{ color: "#888", marginTop: "8px", fontSize: "13px" }}>
-            All {result.total_trucks_analyzed} trucks have safe predicted separations within the {result.lookahead_minutes}-minute window.
-          </p>
-        </div>
-      )}
-
-      {result && result.collision_pairs.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {result.collision_pairs.map((pair, i) => (
-            <div key={i} className="nexus-card" style={{ borderColor: severityColor(pair.severity), background: `rgba(${pair.severity === "HIGH" ? "239,68,68" : pair.severity === "MODERATE" ? "245,158,11" : "34,211,238"},0.05)` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
-                <div>
-                  <div style={{ color: severityColor(pair.severity), fontWeight: "bold", fontSize: "14px", marginBottom: "6px" }}>
-                    {pair.severity === "HIGH" ? "🔴" : pair.severity === "MODERATE" ? "🟡" : "🔵"} {pair.severity} RISK — {pair.truck_a} ↔ {pair.truck_b}
-                  </div>
-                  <div style={{ color: "#ccc", fontSize: "12px", marginBottom: "4px" }}>
-                    Current gap: <b style={{ color: "white" }}>{pair.current_distance_km} km</b>
-                    &nbsp;→ Predicted in {result.lookahead_minutes}min: <b style={{ color: severityColor(pair.severity) }}>{pair.predicted_distance_km} km</b>
-                    &nbsp;(safe: {result.safe_distance_km} km)
-                  </div>
-                  <div style={{ color: "#22d3ee", fontSize: "12px", marginTop: "6px" }}>
-                    💡 {pair.suggested_action}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "28px", fontWeight: "bold", color: severityColor(pair.severity) }}>
-                    {Math.round(pair.collision_probability * 100)}%
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#888" }}>collision prob.</div>
-                  <div style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>
-                    Conflict in ~{pair.time_to_conflict_min}min
-                  </div>
-                </div>
-              </div>
-
-              {/* Conflict zone */}
-              <div style={{ marginTop: "12px", padding: "8px", background: "rgba(0,0,0,0.3)", borderRadius: "4px", fontSize: "11px", color: "#888", fontFamily: "monospace" }}>
-                Conflict zone: {pair.conflict_zone.lat}°N, {pair.conflict_zone.lon}°E
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!result && (
-        <div className="nexus-card" style={{ textAlign: "center", padding: "40px", color: "#888" }}>
-          <div style={{ fontSize: "40px", marginBottom: "12px" }}>🛡️</div>
-          <p>Click <b style={{ color: "white" }}>Run Scan</b> to analyse current fleet positions for collision risks.</p>
-          <p style={{ fontSize: "12px", marginTop: "8px" }}>
-            Uses dead-reckoning to predict where each truck will be in {lookahead} minutes.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ==========================================
 // MAIN APP COMPONENT
 // ==========================================
-export default function App() {
+export default function App({ onLogout }) {
   // Navigation State
   const [activeTab, setActiveTab] = useState("map"); // 'map', 'fleet', 'history', 'account'
   const [currentShipmentId, setCurrentShipmentId] = useState("SHP001");
@@ -482,6 +473,9 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connError, setConnError] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const [pickingMode, setPickingMode] = useState(null); // 'origin' | 'target' | null
+  const audioPlayed = useRef(false);
   const started = useRef(false);
   const currentIdRef = useRef(currentShipmentId);
 
@@ -533,14 +527,12 @@ export default function App() {
           }
 
           if (data.reroute_options && data.reroute_options.length > 0) {
-            setReroutes(prev => {
-              if (prev.length === 0) {
-                const rec = data.reroute_options.find(r => r.recommended);
-                if (rec) { setRecommended(rec.id); setSelected(rec.id); }
-                return data.reroute_options;
-              }
-              return prev;
-            });
+            setReroutes(data.reroute_options);
+            // Only auto-select if nothing is currently selected to avoid flickering
+            if (!selected) {
+              const rec = data.reroute_options.find(r => r.recommended);
+              if (rec) { setRecommended(rec.id); setSelected(rec.id); }
+            }
           }
         } catch (e) { console.error("WS Parse Error:", e); }
       };
@@ -561,11 +553,112 @@ export default function App() {
     return () => { if (ws) ws.close(); clearTimeout(reconnectTimer); };
   }, [currentShipmentId, API, WS_URL]);
 
+  // ── Polling Fallback (if WS fails) ──
+  useEffect(() => {
+    if (!connError) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API}/state`);
+        const data = await res.json();
+        setShipment(data);
+        if (data.reroute_options && data.reroute_options.length > 0 && reroutes.length === 0) {
+          setReroutes(data.reroute_options);
+        }
+      } catch (e) { console.error("Polling error:", e); }
+    };
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [connError, API, reroutes.length]);
+
+  const handleConfirmReroute = async (routeId) => {
+    try {
+      const resp = await fetch(`${API}/confirm-reroute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ route_id: routeId })
+      });
+      if (resp.ok) {
+        setReroutes([]);
+        setSelected(null);
+        // Immediate refresh to ensure map sync
+        const stateRes = await fetch(`${API}/state`);
+        const stateData = await stateRes.json();
+        setShipment(stateData);
+      }
+    } catch (e) {
+      console.error("Confirmation Error:", e);
+    }
+  };
+
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 beep
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    } catch (e) { }
+  };
+
+  useEffect(() => {
+    let timer;
+    if (shipment?.auto_reroute_armed && shipment?.auto_reroute_deadline) {
+      const updateTimer = () => {
+        const remaining = Math.max(0, Math.ceil(shipment.auto_reroute_deadline - (Date.now() / 1000)));
+        setCountdown(remaining);
+      };
+      updateTimer();
+      timer = setInterval(updateTimer, 500);
+
+      // Audio Cue
+      if (!audioPlayed.current) {
+        playBeep();
+        audioPlayed.current = true;
+      }
+    } else {
+      setCountdown(null);
+      audioPlayed.current = false;
+    }
+    return () => clearInterval(timer);
+  }, [shipment?.auto_reroute_armed, shipment?.auto_reroute_deadline]);
+
+  const handleCancelAutoReroute = async () => {
+    try {
+      await fetch(`${API}/cancel-auto-reroute`, { method: "POST" });
+    } catch (e) { console.error(e); }
+  };
+
+
   // Handle Tab Switch Actions
   const handleSelectShipment = (id) => {
     setCurrentShipmentId(id);
     setActiveTab("map");
   };
+
+  // ── Pre-compute memoized route data (hooks must be at component top-level) ──
+  const activeReroutes = shipment
+    ? (reroutes.length > 0 ? reroutes : (shipment.reroute_options || []))
+    : [];
+
+  const mainRoutePoints = useMemo(() => {
+    if (!shipment) return [];
+    return (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
+  }, [shipment?.route?.length]);
+
+  const altRoute = activeReroutes.find(r => r.id !== selected);
+  const altPoints = useMemo(() => {
+    return altRoute ? altRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+  }, [altRoute]);
+
+  const selRoute = activeReroutes.find(r => r.id === selected);
+  const selPoints = useMemo(() => {
+    return selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
+  }, [selRoute]);
 
   // ══════════════════════════════════
   // RENDER: SIDEBAR NAVIGATION
@@ -607,6 +700,23 @@ export default function App() {
   // ══════════════════════════════════
   // RENDER: LIVE MAP TAB (Original View context)
   // ══════════════════════════════════
+  const MapEvents = () => {
+    useMapEvents({
+      click: (e) => {
+        if (pickingMode === 'origin') {
+          // Indirect set via parent ScheduleTab would be better but we'll use a hack or proper state
+          // For now, let's assume ScheduleTab origin/target are actually in App level for easier pinning
+          // Actually, we'll just use a DOM event or a shared ref if needed. 
+          // BETTER: Move origin/target state to App level or use a global callback.
+          window.dispatchEvent(new CustomEvent('map-click', { detail: { lat: e.latlng.lat, lon: e.latlng.lng, type: 'origin' } }));
+        } else if (pickingMode === 'target') {
+          window.dispatchEvent(new CustomEvent('map-click', { detail: { lat: e.latlng.lat, lon: e.latlng.lng, type: 'target' } }));
+        }
+      }
+    });
+    return null;
+  };
+
   const renderMapTab = () => {
     if (connError) {
       return (
@@ -620,16 +730,9 @@ export default function App() {
       return <div className="onyx-loading"><div className="onyx-spinner" /></div>;
     }
 
-    const mainRoutePoints = (shipment.route || []).map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
-
     const currentPos = [shipment.current_location?.lat ?? shipment.current_location?.latitude ?? 0, shipment.current_location?.lon ?? shipment.current_location?.longitude ?? 0];
     const destPos = shipment.destination ? [shipment.destination.lat ?? 0, shipment.destination.lon ?? 0] : currentPos;
     const rColor = riskColor(shipment.risk_score);
-    const activeReroutes = reroutes.length > 0 ? reroutes : (shipment.reroute_options || []);
-
-    const selRoute = activeReroutes.find(r => r.id === selected);
-    const selPoints = selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]) : [];
-
     const weather = shipment.weather || {};
 
     const handleGetReroute = async () => {
@@ -655,11 +758,12 @@ export default function App() {
         <div className="onyx-map-pane" style={{ position: "relative" }}>
           <MapContainer center={currentPos} zoom={7} style={{ height: "100%", width: "100%" }} zoomControl={false}>
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+            <MapEvents />
             {mainRoutePoints.length > 0 && <Polyline positions={mainRoutePoints} color={rColor} weight={5} opacity={0.8} />}
             {activeReroutes.map(r => {
               if (r.id === selected) return null;
               const points = r.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
-              return <Polyline key={r.id} positions={points} color="#a855f7" weight={2} opacity={0.2} dashArray="10 10" />;
+              return <Polyline key={r.id} positions={points} color="#a855f7" weight={2} opacity={0.4} dashArray="10 10" />;
             })}
             {selPoints.length > 0 && <Polyline positions={selPoints} color="#a855f7" weight={6} opacity={1.0} dashArray="12 8" />}
 
@@ -756,6 +860,20 @@ export default function App() {
               </div>
               <span className="signal-value">{parseFloat(shipment.signals?.weather_score || 0).toFixed(2)}</span>
             </div>
+
+            {weather.temp_c !== undefined && (
+              <div className="weather-telemetry" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <span>🌡 {weather.temp_c}°C</span>
+                  <span>💧 {weather.humidity}%</span>
+                  <span>💨 {weather.wind_kph} km/h</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  <span>👁 {weather.visibility_km} km vis</span>
+                  {weather.rain_1h_mm > 0 && <span style={{ color: '#3b82f6' }}>🌧 {weather.rain_1h_mm}mm/h</span>}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="onyx-card">
@@ -770,59 +888,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="onyx-card">
-            <div className="onyx-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Area Intelligence</span>
-              <button className="onyx-btn btn-ghost" style={{ padding: '4px 8px', fontSize: '10px', height: 'auto', flex: 'none' }} 
-                onClick={async (e) => {
-                  e.target.innerText = 'Scanning...';
-                  try {
-                    await fetch(`${API}/shipments/${shipment.shipment_id}/intel`);
-                    e.target.innerText = 'Scan Area';
-                  } catch(err) {
-                     e.target.innerText = 'Error';
-                  }
-                }}
-              >
-                Scan Area
-              </button>
-            </div>
-            {shipment.intel_report ? (
-              <div style={{ marginTop: '10px' }}>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  📍 Current Region: <b style={{color: 'white'}}>{shipment.intel_report.location?.city}</b>
-                </p>
-                {shipment.intel_report.news && shipment.intel_report.news.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {shipment.intel_report.news.slice(0, 2).map((n, i) => (
-                      <div key={i} style={{ 
-                        fontSize: '11px', 
-                        padding: '8px', 
-                        background: 'rgba(255,255,255,0.03)', 
-                        borderRadius: '6px', 
-                        borderLeft: n.sentiment === 'negative' ? '3px solid var(--accent-red)' : '3px solid var(--accent-cyan)' 
-                      }}>
-                        <a href={n.url} target="_blank" rel="noreferrer" style={{ color: '#e2e8f0', textDecoration: 'none', lineHeight: '1.4', display: 'block' }}>{n.title}</a>
-                        <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          📰 {n.source}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
-                     No major events detected on public channels.
-                   </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '10px', lineHeight: '1.5' }}>
-                Intel scan pending. Click 'Scan Area' to fetch real-time situational awareness (News, Weather, Social).
-              </div>
-            )}
-          </div>
-
-          {shipment.status === 'HIGH RISK' && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
+          {(shipment.status === 'HIGH RISK' || shipment.status === 'WARNING') && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
             <div className="onyx-card" style={{ border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
               <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>⚠️ ACTION REQUIRED</div>
               <p style={{ color: '#fca5a5', fontSize: '12px', marginBottom: '12px' }}>
@@ -835,20 +901,36 @@ export default function App() {
           )}
 
           {activeReroutes.length > 0 && shipment.status !== "SAFE" && (
-            <div className="onyx-card">
-              <div className="onyx-card-title">💡 Strategic Trajectories</div>
+            <div className="onyx-card scale-up">
+              <div className="onyx-card-title">💡 Strategic Trajectories ({activeReroutes.length})</div>
               <div className="route-options-grid">
                 {activeReroutes.map(r => (
                   <div key={r.id} className={`route-card ${selected === r.id ? "selected" : ""}`} onClick={() => setSelected(r.id)}>
                     <div className="route-card-id">{r.id.toUpperCase()}</div>
+                    <div className="route-card-time" style={{ fontSize: '10px', color: '#94a3b8' }}>{r.travel_time_min}m</div>
                   </div>
                 ))}
               </div>
-              <button className="onyx-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
-                onClick={() => {
-                  fetch(`${API}/confirm-reroute`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ route_id: selected }) })
-                  setReroutes([]); setSelected(null);
-                }}>Confirm Route</button>
+              {shipment?.auto_reroute_armed && countdown !== null ? (
+                <div style={{ textAlign: 'center', marginTop: '15px', padding: '15px', border: '1px solid #ff003c', borderRadius: '8px', background: 'rgba(255,0,60,0.05)', boxShadow: '0 0 15px rgba(255,0,60,0.3)' }}>
+                  <h4 style={{ color: '#ff003c', margin: '0 0 8px 0', animation: 'pulse 1s infinite' }}>⚠️ Critical Hazard Ahead</h4>
+                  <p style={{ color: '#fca5a5', fontSize: '13px', margin: '0 0 15px 0' }}>Rerouting in {countdown}s...</p>
+
+                  <div style={{ position: 'relative', width: '64px', height: '64px', margin: '0 auto 15px auto' }}>
+                    <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#ff003c" strokeWidth="3" strokeDasharray={`${((5 - countdown) / 5) * 100}, 100`} style={{ transition: 'stroke-dasharray 0.5s linear' }} />
+                    </svg>
+                  </div>
+
+                  <button className="onyx-btn" onClick={handleCancelAutoReroute} style={{ width: '100%', background: '#ff003c', color: 'white', fontWeight: 'bold' }}>Cancel (SOP Override)</button>
+                </div>
+              ) : (
+                <button className="onyx-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
+                  onClick={() => handleConfirmReroute(selected)}>
+                  Confirm Route
+                </button>
+              )}
             </div>
           )}
         </aside>
@@ -863,12 +945,11 @@ export default function App() {
       <main className="onyx-main-content">
         {activeTab === 'map' && renderMapTab()}
         {activeTab === 'fleet' && <FleetTab fleet={fleet} onSelectShipment={handleSelectShipment} statusBadgeClass={statusBadgeClass} riskColor={riskColor} />}
-        {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} />}
+        {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} setPickingMode={setPickingMode} pickingMode={pickingMode} />}
         {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
-        {activeTab === 'collision' && <CollisionTab fleet={fleet} />}
-        {activeTab === 'account' && <AccountTab />}
-      </main>
-    </div>
+        {activeTab === 'account' && <AccountTab onLogout={onLogout} />}
+      </main >
+    </div >
   );
 }

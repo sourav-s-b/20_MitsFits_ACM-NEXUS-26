@@ -10,6 +10,8 @@ from routes.main_routes          import router as main_router, start_shipment
 from routes.decision_routes      import router as decision_router
 from routes.orchestration_routes import router as orchestration_router
 from routes.intel_routes         import router as intel_router
+from routes.collision_routes     import router as collision_router
+from routes.geocoding_routes     import router as geocoding_router
 from websocket                   import router as websocket_router
 
 # =========================
@@ -26,9 +28,9 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(run_simulation())
 
     # Auto-start a default shipment (SHP001) so the route is ready immediately
-    print("🚀 Auto-starting shipment SHP001 on boot...")
+    print("[Startup] Auto-starting shipment SHP001 on boot...")
     result = await start_shipment("SHP001")
-    print(f"   → {result.get('message', result)}")
+    print(f"   -> {result.get('message', result)}")
 
     yield  # app runs here
 
@@ -56,6 +58,8 @@ app.include_router(main_router,          prefix="", tags=["shipment"])
 app.include_router(decision_router,      prefix="", tags=["decision"])
 app.include_router(orchestration_router, prefix="", tags=["orchestration"])
 app.include_router(intel_router,         prefix="", tags=["intelligence"])
+app.include_router(collision_router,     prefix="", tags=["collision"])
+app.include_router(geocoding_router,     prefix="", tags=["geocoding"])
 app.include_router(websocket_router,     prefix="", tags=["websocket"])
 
 if __name__ == "__main__":

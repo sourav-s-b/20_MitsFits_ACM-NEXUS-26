@@ -1,4 +1,4 @@
-# 🚀 Welcome to ONYX
+# 🚀 Welcome to NEXUS
 
 ### Conducted by | CLIQUE x ACM MITS |
 
@@ -220,4 +220,4 @@ Focus on building, learning, and enjoying the experience.
 
 ---
 
-🔥 **Build. Break. Innovate. See you at ONYX.**
+🔥 **Build. Break. Innovate. See you at NEXUS.**

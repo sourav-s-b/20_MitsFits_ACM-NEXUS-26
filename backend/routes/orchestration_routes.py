@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from live_store import get_shipment, set_shipment
 from database import log_audit_event
+from websocket import manager
 
 router = APIRouter()
 load_dotenv()
@@ -29,7 +30,7 @@ PERSON2_URL = os.getenv("PERSON2_URL", "http://127.0.0.1:8001")
 
 async def fetch_weather(lat: float, lon: float) -> dict:
     if not OWM_KEY or OWM_KEY == "your_openweathermap_key_here":
-        return _fallback_weather()
+        return {"score": 0.0}
     try:
         url = (
             f"https://api.openweathermap.org/data/2.5/weather"
@@ -40,14 +41,23 @@ async def fetch_weather(lat: float, lon: float) -> dict:
             data = resp.json()
 
         if data.get("cod") != 200:
-            return _fallback_weather()
+            print(f"⚠️ OWM API Error: {data.get('message', data)}")
+            return {"score": 0.0}
 
-        rain_1h = data.get("rain", {}).get("1h", 0.0)
-        wind_speed = data.get("wind", {}).get("speed", 0.0)
-        visibility = data.get("visibility", 10000) / 1000
-        description = data["weather"][0]["description"]
-        temp_c = data["main"]["temp"]
-        humidity = data["main"]["humidity"]
+        rain_data = data.get("rain") or {}
+        rain_1h = rain_data.get("1h", 0.0)
+        
+        wind_data = data.get("wind") or {}
+        wind_speed = wind_data.get("speed", 0.0)
+        
+        vis_raw = data.get("visibility")
+        visibility = (vis_raw if vis_raw is not None else 10000) / 1000
+        
+        description = data["weather"][0]["description"] if data.get("weather") else "Clear"
+        
+        main_data = data.get("main") or {}
+        temp_c = main_data.get("temp", 25.0)
+        humidity = main_data.get("humidity", 50)
 
         rain_score = min(rain_1h / 20.0, 1.0)
         wind_score = min(wind_speed / 25.0, 1.0)
@@ -63,7 +73,8 @@ async def fetch_weather(lat: float, lon: float) -> dict:
             "rain_1h_mm": rain_1h,
             "score": score,
         }
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ OWM Exception: {e}")
         return _fallback_weather()
 
 
@@ -191,19 +202,28 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
             f"&traffic=true&maxAlternatives=5&travelMode=truck"
-            f"&alternativeType=anyRoute&minDeviationDistance=500"
+            f"&alternativeType=anyRoute"
         )
+        print(f"\n[Simulator Shadow] Pre-scanning paths for {shipment_id}...")
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, timeout=10.0)
+            resp = await client.get(url, timeout=12.0)
             data = resp.json()
 
+        if resp.status_code != 200:
+            print(f"   ❌ TomTom Error ({resp.status_code}): {data.get('detailedError', {}).get('message', 'Unknown error')}")
+            print(f"   → URL: {url.split('key=')[0]}key=HIDDEN")
+
         routes = data.get("routes", [])
+        print(f"   → Found {len(routes)} alternatives")
+        if routes:
+            times = [r['summary']['travelTimeInSeconds'] for r in routes]
+            print(f"   → Durations (min): {[round(t/60) for t in times]}")
+
         if not routes:
             fallback_url = (
                 f"https://api.tomtom.com/routing/1/calculateRoute"
                 f"/{origin}:{dest}/json"
                 f"?key={TOMTOM_KEY}&traffic=true&travelMode=truck"
-                f"&maxAlternatives=5&alternativeType=anyRoute"
             )
             async with httpx.AsyncClient() as client:
                 resp = await client.get(fallback_url, timeout=10.0)
@@ -214,24 +234,21 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             return []
 
         options = []
-        sim_delay_min = shipment.get("signals", {}).get("traffic_delay", 0)
-
         for i, r in enumerate(routes[:5]):
             s = r["summary"]
-            base_time = round(s["travelTimeInSeconds"] / 60)
-            final_time = base_time + sim_delay_min if i == 0 else base_time
-            
             options.append(
                 {
                     "id": f"route_{chr(65 + i)}",
-                    "travel_time_min": final_time,
+                    "travel_time_min": round(s["travelTimeInSeconds"] / 60),
                     "distance_km": round(s["lengthInMeters"] / 1000, 1),
                     "polyline": [
                         {"lat": p["latitude"], "lon": p["longitude"]}
                         for p in r["legs"][0]["points"]
                     ],
                     "recommended": (i == 1) if len(routes) > 1 else True,
-                    "reason": "AI-recommended reroute" if i == 1 else "Current traffic loaded route",
+                    "reason": "AI-recommended reroute"
+                    if i == 1
+                    else "Current traffic loaded route",
                 }
             )
         return options
@@ -250,7 +267,8 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None, e
 
     weather_data = await fetch_weather(loc["lat"], loc["lon"])
     if override_weather_score is not None:
-        weather_data["score"] = override_weather_score
+        # Cap simulated risk so it doesn't always hit 1.0 (100%) instantly
+        weather_data["score"] = min(override_weather_score, 0.85)
         weather_data["description"] = "storm (simulated)"
 
     shipment["weather"] = weather_data
@@ -270,7 +288,7 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None, e
     reason = p2_result["reason"]
 
     if event_type:
-        risk = max(risk, 0.85)
+        risk = max(risk, 0.75)  # Enough for HIGH RISK but not pinned at 1.0
         level = "CRITICAL"
         reason = _rag_lookup(
             level=level, 
@@ -317,6 +335,9 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None, e
     set_shipment(shipment_id, shipment)
     log_audit_event(shipment_id, time.strftime("%H:%M"), "pipeline_run", risk, reason)
 
+    # Broadcast updated state to all UI clients
+    await manager.broadcast(shipment_id, shipment)
+
 
 # ══════════════════════════════════════════════════════
 # SECTION 3 — ENDPOINTS
@@ -341,7 +362,7 @@ def simulate_storm(shipment_id: str, background_tasks: BackgroundTasks):
 
 def _trigger_event(shipment_id: str, event_type: str, background_tasks: BackgroundTasks):
     shipment = get_shipment(shipment_id)
-    shipment["signals"]["traffic_delay"] = 120  # Force severe delay
+    shipment["signals"]["traffic_delay"] = 65  # Sufficient for high risk demonstration
     set_shipment(shipment_id, shipment)
     background_tasks.add_task(run_pipeline, shipment_id, None, event_type)
     return {"status": "processing", "message": f"{event_type.title()} simulation started"}
