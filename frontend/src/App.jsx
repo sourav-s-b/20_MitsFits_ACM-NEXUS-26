@@ -14,7 +14,7 @@ const WS_BASE_URL = "ws://127.0.0.1:8000";
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/zdist/images/marker-icon.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
@@ -297,6 +297,10 @@ const AnalyticsTab = ({ fleet }) => {
   );
 };
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> f0be9b8f0d07d2b46e7c8f4ef3597d1c1c6739d1
 // ==========================================
 // MAIN APP COMPONENT
 // ==========================================
@@ -312,6 +316,8 @@ export default function App({ onLogout }) {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connError, setConnError] = useState(false);
+  const [countdown, setCountdown] = useState(null);
+  const audioPlayed = useRef(false);
   const started = useRef(false);
   const currentIdRef = useRef(currentShipmentId);
 
@@ -390,6 +396,87 @@ export default function App({ onLogout }) {
     connectWS();
     return () => { if (ws) ws.close(); clearTimeout(reconnectTimer); };
   }, [currentShipmentId, API, WS_URL]);
+
+  // ── Polling Fallback (if WS fails) ──
+  useEffect(() => {
+    if (!connError) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API}/state`);
+        const data = await res.json();
+        setShipment(data);
+        if (data.reroute_options && data.reroute_options.length > 0 && reroutes.length === 0) {
+          setReroutes(data.reroute_options);
+        }
+      } catch (e) { console.error("Polling error:", e); }
+    };
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [connError, API, reroutes.length]);
+
+  const handleConfirmReroute = async (routeId) => {
+    try {
+      const resp = await fetch(`${API}/confirm-reroute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ route_id: routeId })
+      });
+      if (resp.ok) {
+        setReroutes([]);
+        setSelected(null);
+        // Immediate refresh to ensure map sync
+        const stateRes = await fetch(`${API}/state`);
+        const stateData = await stateRes.json();
+        setShipment(stateData);
+      }
+    } catch (e) {
+      console.error("Confirmation Error:", e);
+    }
+  };
+
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 beep
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    let timer;
+    if (shipment?.auto_reroute_armed && shipment?.auto_reroute_deadline) {
+      const updateTimer = () => {
+        const remaining = Math.max(0, Math.ceil(shipment.auto_reroute_deadline - (Date.now() / 1000)));
+        setCountdown(remaining);
+      };
+      updateTimer();
+      timer = setInterval(updateTimer, 500);
+
+      // Audio Cue
+      if (!audioPlayed.current) {
+        playBeep();
+        audioPlayed.current = true;
+      }
+    } else {
+      setCountdown(null);
+      audioPlayed.current = false;
+    }
+    return () => clearInterval(timer);
+  }, [shipment?.auto_reroute_armed, shipment?.auto_reroute_deadline]);
+
+  const handleCancelAutoReroute = async () => {
+    try {
+      await fetch(`${API}/cancel-auto-reroute`, { method: "POST" });
+    } catch(e) { console.error(e); }
+  };
+
 
   // Handle Tab Switch Actions
   const handleSelectShipment = (id) => {
@@ -633,11 +720,26 @@ export default function App({ onLogout }) {
                   </div>
                 ))}
               </div>
-              <button className="onyx-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
-                onClick={() => {
-                  fetch(`${API}/confirm-reroute`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ route_id: selected }) })
-                  setReroutes([]); setSelected(null);
-                }}>Confirm Route</button>
+              {shipment?.auto_reroute_armed && countdown !== null ? (
+                <div style={{ textAlign: 'center', marginTop: '15px', padding: '15px', border: '1px solid #ff003c', borderRadius: '8px', background: 'rgba(255,0,60,0.05)', boxShadow: '0 0 15px rgba(255,0,60,0.3)' }}>
+                  <h4 style={{ color: '#ff003c', margin: '0 0 8px 0', animation: 'pulse 1s infinite' }}>⚠️ Critical Hazard Ahead</h4>
+                  <p style={{ color: '#fca5a5', fontSize: '13px', margin: '0 0 15px 0' }}>Rerouting in {countdown}s...</p>
+                  
+                  <div style={{ position: 'relative', width: '64px', height: '64px', margin: '0 auto 15px auto' }}>
+                    <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+                      <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#ff003c" strokeWidth="3" strokeDasharray={`${((5 - countdown) / 5) * 100}, 100`} style={{ transition: 'stroke-dasharray 0.5s linear' }} />
+                    </svg>
+                  </div>
+                  
+                  <button className="onyx-btn" onClick={handleCancelAutoReroute} style={{ width: '100%', background: '#ff003c', color: 'white', fontWeight: 'bold' }}>Cancel (SOP Override)</button>
+                </div>
+              ) : (
+                <button className="onyx-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
+                    onClick={() => handleConfirmReroute(selected)}>
+                  Confirm Route
+                </button>
+              )}
             </div>
           )}
         </aside>
@@ -655,7 +757,11 @@ export default function App({ onLogout }) {
         {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} />}
         {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
+<<<<<<< HEAD
         {activeTab === 'account' && <AccountTab onLogout={onLogout} />}
+=======
+        {activeTab === 'account' && <AccountTab />}
+>>>>>>> f0be9b8f0d07d2b46e7c8f4ef3597d1c1c6739d1
       </main>
     </div>
   );
