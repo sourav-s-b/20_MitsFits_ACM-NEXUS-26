@@ -1,0 +1,122 @@
+.champions-login {
+    height: 100vh;
+    background: #020617;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+    font-family: "Inter", sans-serif;
+}
+
+/* Smooth gradient layer */
+.bg-gradient {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 20% 20%, #6366f1, transparent 40%),
+        radial-gradient(circle at 80% 70%, #a855f7, transparent 40%);
+    opacity: 0.2;
+}
+
+/* Floating blur circles */
+.blur-circle {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.5;
+}
+
+.blur-circle.one {
+    width: 300px;
+    height: 300px;
+    background: #6366f1;
+    top: 10%;
+    left: 10%;
+}
+
+.blur-circle.two {
+    width: 300px;
+    height: 300px;
+    background: #a855f7;
+    bottom: 10%;
+    right: 10%;
+}
+
+/* Glass Card */
+.login-box {
+    z-index: 2;
+    width: 350px;
+    padding: 40px;
+
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    text-align: center;
+
+    animation: fadeUp 0.8s ease;
+}
+
+.login-box h1 {
+    color: white;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+
+.login-box p {
+    color: #94a3b8;
+    margin-bottom: 20px;
+}
+
+.login-box input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid #334155;
+    border-radius: 8px;
+    color: white;
+}
+
+.login-box input:focus {
+    border-color: #6366f1;
+    outline: none;
+}
+
+/* Button */
+.login-box button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    border: none;
+    border-radius: 8px;
+
+    color: white;
+    font-weight: bold;
+
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.login-box button:hover {
+    transform: scale(1.05);
+}
+
+/* Animation */
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

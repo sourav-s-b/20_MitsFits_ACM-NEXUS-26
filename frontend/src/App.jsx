@@ -37,10 +37,10 @@ const LocationSearch = ({ placeholder, onSelect, BASE_URL }) => {
 
   return (
     <div style={{ position: 'relative', width: '100%' }}>
-      <input 
-        type="text" 
-        placeholder={placeholder} 
-        value={query} 
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={query}
         onChange={e => { setQuery(e.target.value); setShow(true); }}
         onFocus={() => setShow(true)}
         style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }}
@@ -48,9 +48,9 @@ const LocationSearch = ({ placeholder, onSelect, BASE_URL }) => {
       {show && results.length > 0 && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, background: '#1e293b', border: '1px solid var(--border)', borderRadius: '4px', marginTop: '4px', overflow: 'hidden' }}>
           {results.map((r, i) => (
-            <div 
-              key={i} 
-              className="search-result-item" 
+            <div
+              key={i}
+              className="search-result-item"
               onClick={() => { onSelect(r); setQuery(r.label); setShow(false); }}
               style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', borderBottom: i < results.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
             >
@@ -193,7 +193,7 @@ const HistoryTab = ({ currentShipmentId, riskColor }) => {
   );
 };
 
-const AccountTab = () => {
+const AccountTab = ({ onLogout }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -213,7 +213,14 @@ const AccountTab = () => {
         <p><b>Name:</b> {user.name}</p>
         <p><b>Role:</b> {user.role}</p>
         <p><b>Auth Token:</b> <code className="mono">{user.token.slice(0, 8)}...</code></p>
-        <button className="onyx-btn btn-danger" style={{ marginTop: '15px', width: '100%' }}>Sign Out</button>
+        <button
+          type="button"
+          className="onyx-btn btn-danger"
+          style={{ marginTop: '15px', width: '100%' }}
+          onClick={() => typeof onLogout === "function" && onLogout()}
+        >
+          Sign Out
+        </button>
       </div>
     </div>
   );
@@ -271,9 +278,9 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>ORIGIN (Search or Pin)</label>
               <LocationSearch BASE_URL={BASE_URL} placeholder="Search origin..." onSelect={r => setOrigin(`${r.lat},${r.lon}`)} />
-              <button 
-                type="button" 
-                className={`onyx-btn ${pickingMode === 'origin' ? 'btn-danger' : 'btn-cyan'}`} 
+              <button
+                type="button"
+                className={`onyx-btn ${pickingMode === 'origin' ? 'btn-danger' : 'btn-cyan'}`}
                 style={{ width: '100%', marginTop: '8px', fontSize: '12px', padding: '8px' }}
                 onClick={() => setPickingMode(pickingMode === 'origin' ? null : 'origin')}
               >
@@ -285,9 +292,9 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>DESTINATION (Search or Pin)</label>
               <LocationSearch BASE_URL={BASE_URL} placeholder="Search destination..." onSelect={r => setTarget(`${r.lat},${r.lon}`)} />
-              <button 
-                type="button" 
-                className={`onyx-btn ${pickingMode === 'target' ? 'btn-danger' : 'btn-cyan'}`} 
+              <button
+                type="button"
+                className={`onyx-btn ${pickingMode === 'target' ? 'btn-danger' : 'btn-cyan'}`}
                 style={{ width: '100%', marginTop: '8px', fontSize: '12px', padding: '8px' }}
                 onClick={() => setPickingMode(pickingMode === 'target' ? null : 'target')}
               >
@@ -370,7 +377,7 @@ const CollisionTab = ({ fleet, BASE_URL }) => {
     <div className="tab-pane">
       <h1>🛡️ Predictive Collision Avoidance</h1>
       <p>Analyze the entire fleet for potential proximity violations in the next 5 minutes.</p>
-      
+
       <div style={{ display: "flex", gap: "16px", marginBottom: "24px" }}>
         <button className="onyx-btn btn-cyan" onClick={runPrediction} disabled={loading}>{loading ? "⏳ Scanning..." : "⚡ Run Scan"}</button>
         <button className={`onyx-btn ${autoMode ? 'btn-danger' : 'btn-green'}`} onClick={() => setAutoMode(!autoMode)}>{autoMode ? "⏹ Stop Auto" : "🔄 Auto-Scan"}</button>
@@ -451,11 +458,14 @@ const AnalyticsTab = ({ fleet }) => {
   );
 };
 
+<<<<<<< HEAD
+=======
 
+>>>>>>> f0be9b8f0d07d2b46e7c8f4ef3597d1c1c6739d1
 // ==========================================
 // MAIN APP COMPONENT
 // ==========================================
-export default function App() {
+export default function App({ onLogout }) {
   // Navigation State
   const [activeTab, setActiveTab] = useState("map"); // 'map', 'fleet', 'history', 'account'
   const [currentShipmentId, setCurrentShipmentId] = useState("SHP001");
@@ -596,7 +606,7 @@ export default function App() {
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
       osc.start();
       osc.stop(ctx.currentTime + 0.25);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   useEffect(() => {
@@ -624,7 +634,7 @@ export default function App() {
   const handleCancelAutoReroute = async () => {
     try {
       await fetch(`${API}/cancel-auto-reroute`, { method: "POST" });
-    } catch(e) { console.error(e); }
+    } catch (e) { console.error(e); }
   };
 
 
@@ -909,19 +919,19 @@ export default function App() {
                 <div style={{ textAlign: 'center', marginTop: '15px', padding: '15px', border: '1px solid #ff003c', borderRadius: '8px', background: 'rgba(255,0,60,0.05)', boxShadow: '0 0 15px rgba(255,0,60,0.3)' }}>
                   <h4 style={{ color: '#ff003c', margin: '0 0 8px 0', animation: 'pulse 1s infinite' }}>⚠️ Critical Hazard Ahead</h4>
                   <p style={{ color: '#fca5a5', fontSize: '13px', margin: '0 0 15px 0' }}>Rerouting in {countdown}s...</p>
-                  
+
                   <div style={{ position: 'relative', width: '64px', height: '64px', margin: '0 auto 15px auto' }}>
                     <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
                       <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
                       <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#ff003c" strokeWidth="3" strokeDasharray={`${((5 - countdown) / 5) * 100}, 100`} style={{ transition: 'stroke-dasharray 0.5s linear' }} />
                     </svg>
                   </div>
-                  
+
                   <button className="onyx-btn" onClick={handleCancelAutoReroute} style={{ width: '100%', background: '#ff003c', color: 'white', fontWeight: 'bold' }}>Cancel (SOP Override)</button>
                 </div>
               ) : (
                 <button className="onyx-btn btn-green" style={{ width: '100%', marginTop: '8px' }}
-                    onClick={() => handleConfirmReroute(selected)}>
+                  onClick={() => handleConfirmReroute(selected)}>
                   Confirm Route
                 </button>
               )}
@@ -942,9 +952,12 @@ export default function App() {
         {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} setPickingMode={setPickingMode} pickingMode={pickingMode} />}
         {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
-        {activeTab === 'collision' && <CollisionTab fleet={fleet} BASE_URL={BASE_URL} />}
+<<<<<<< HEAD
+  { activeTab === 'account' && <AccountTab onLogout={onLogout} /> }
+=======
         {activeTab === 'account' && <AccountTab />}
-      </main>
-    </div>
+>>>>>>> f0be9b8f0d07d2b46e7c8f4ef3597d1c1c6739d1
+      </main >
+    </div >
   );
 }
