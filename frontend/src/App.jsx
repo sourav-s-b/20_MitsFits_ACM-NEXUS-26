@@ -533,14 +533,12 @@ export default function App() {
           }
 
           if (data.reroute_options && data.reroute_options.length > 0) {
-            setReroutes(prev => {
-              if (prev.length === 0) {
-                const rec = data.reroute_options.find(r => r.recommended);
-                if (rec) { setRecommended(rec.id); setSelected(rec.id); }
-                return data.reroute_options;
-              }
-              return prev;
-            });
+            setReroutes(data.reroute_options);
+            // Only auto-select if nothing is currently selected to avoid flickering
+            if (!selected) {
+              const rec = data.reroute_options.find(r => r.recommended);
+              if (rec) { setRecommended(rec.id); setSelected(rec.id); }
+            }
           }
         } catch (e) { console.error("WS Parse Error:", e); }
       };
@@ -659,7 +657,7 @@ export default function App() {
             {activeReroutes.map(r => {
               if (r.id === selected) return null;
               const points = r.polyline.map(p => [p.latitude ?? p.lat ?? 0, p.longitude ?? p.lon ?? 0]);
-              return <Polyline key={r.id} positions={points} color="#a855f7" weight={2} opacity={0.2} dashArray="10 10" />;
+              return <Polyline key={r.id} positions={points} color="#a855f7" weight={2} opacity={0.4} dashArray="10 10" />;
             })}
             {selPoints.length > 0 && <Polyline positions={selPoints} color="#a855f7" weight={6} opacity={1.0} dashArray="12 8" />}
 
@@ -784,7 +782,7 @@ export default function App() {
             </div>
           </div>
 
-          {shipment.status === 'HIGH RISK' && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
+          {(shipment.status === 'HIGH RISK' || shipment.status === 'WARNING') && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
             <div className="onyx-card" style={{ border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
               <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>⚠️ ACTION REQUIRED</div>
               <p style={{ color: '#fca5a5', fontSize: '12px', marginBottom: '12px' }}>
@@ -797,12 +795,13 @@ export default function App() {
           )}
 
           {activeReroutes.length > 0 && shipment.status !== "SAFE" && (
-            <div className="onyx-card">
-              <div className="onyx-card-title">💡 Strategic Trajectories</div>
+            <div className="onyx-card scale-up">
+              <div className="onyx-card-title">💡 Strategic Trajectories ({activeReroutes.length})</div>
               <div className="route-options-grid">
                 {activeReroutes.map(r => (
                   <div key={r.id} className={`route-card ${selected === r.id ? "selected" : ""}`} onClick={() => setSelected(r.id)}>
                     <div className="route-card-id">{r.id.toUpperCase()}</div>
+                    <div className="route-card-time" style={{ fontSize: '10px', color: '#94a3b8' }}>{r.travel_time_min}m</div>
                   </div>
                 ))}
               </div>

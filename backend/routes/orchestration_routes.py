@@ -200,14 +200,17 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
-            f"&traffic=true&maxAlternatives=3&travelMode=truck"
-            f"&alternativeType=anyRoute&minDeviationDistance=1000"
+            f"&traffic=true&maxAlternatives=5&travelMode=truck"
+            f"&alternativeType=anyRoute&minDeviationDistance=0"
         )
+        print(f"\n[Simulator Shadow] Pre-scanning paths for {shipment_id}...")
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url, timeout=10.0)
+            resp = await client.get(url, timeout=12.0)
             data = resp.json()
 
         routes = data.get("routes", [])
+        print(f"   → Found {len(routes)} alternatives")
+
         if not routes:
             fallback_url = (
                 f"https://api.tomtom.com/routing/1/calculateRoute"
@@ -223,7 +226,7 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             return []
 
         options = []
-        for i, r in enumerate(routes[:3]):
+        for i, r in enumerate(routes[:5]):
             s = r["summary"]
             options.append(
                 {
@@ -256,7 +259,8 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None, e
 
     weather_data = await fetch_weather(loc["lat"], loc["lon"])
     if override_weather_score is not None:
-        weather_data["score"] = override_weather_score
+        # Cap simulated risk so it doesn't always hit 1.0 (100%) instantly
+        weather_data["score"] = min(override_weather_score, 0.85)
         weather_data["description"] = "storm (simulated)"
 
     shipment["weather"] = weather_data
@@ -276,7 +280,7 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None, e
     reason = p2_result["reason"]
 
     if event_type:
-        risk = max(risk, 0.85)
+        risk = max(risk, 0.75)  # Enough for HIGH RISK but not pinned at 1.0
         level = "CRITICAL"
         reason = _rag_lookup(
             level=level, 
@@ -347,7 +351,7 @@ def simulate_storm(shipment_id: str, background_tasks: BackgroundTasks):
 
 def _trigger_event(shipment_id: str, event_type: str, background_tasks: BackgroundTasks):
     shipment = get_shipment(shipment_id)
-    shipment["signals"]["traffic_delay"] = 120  # Force severe delay
+    shipment["signals"]["traffic_delay"] = 65  # Sufficient for high risk demonstration
     set_shipment(shipment_id, shipment)
     background_tasks.add_task(run_pipeline, shipment_id, None, event_type)
     return {"status": "processing", "message": f"{event_type.title()} simulation started"}

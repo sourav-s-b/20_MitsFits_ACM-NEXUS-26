@@ -40,9 +40,9 @@ def evaluate_risk(signals: dict) -> float:
 
 
 def classify_status(risk: float) -> str:
-    if risk < 0.4:
+    if risk < 0.2:
         return "SAFE"
-    if risk < 0.6:
+    if risk < 0.4:
         return "WARNING"
     return "HIGH RISK"
 
@@ -160,10 +160,20 @@ def get_reroute(shipment_id: str):
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=5&travelMode=truck"
-            f"&alternativeType=anyRoute&minDeviationDistance=1000&minDeviationTime=60"
+            f"&routeType=fastest"
         )
-        resp   = requests.get(url, timeout=10).json()
-        routes = resp.get("routes", [])
+        print(f"\n[Routing Intelligence] Requesting Alternatives (Force Variety)...")
+        print(f"   → URL: {url}")
+        
+        resp_raw = requests.get(url, timeout=20)
+        resp     = resp_raw.json()
+        routes   = resp.get("routes", [])
+        
+        print(f"   → Result: Found {len(routes)} potential trajectories")
+
+        if routes:
+            times = [r['summary']['travelTimeInSeconds'] for r in routes]
+            print(f"   → Durations (min): {[round(t/60) for t in times]}")
         
         if len(routes) == 0:
             print(f"⚠️  TomTom returned 0 routes. Retrying fallback...")
@@ -175,7 +185,6 @@ def get_reroute(shipment_id: str):
             resp   = requests.get(fallback_url, timeout=10).json()
             routes = resp.get("routes", [])
 
-        print(f"DEBUG TomTom /reroute — got {len(routes)} route(s)")
     except Exception as e:
         print(f"⚠️  TomTom routing call failed: {e}")
         return {"options": [], "recommended": None, "error": str(e)}
@@ -185,7 +194,8 @@ def get_reroute(shipment_id: str):
         return {"options": [], "recommended": None}
 
     options = []
-    for i, r in enumerate(routes[:2]):
+    # Take more alternatives for a better UI experience
+    for i, r in enumerate(routes[:5]):
         s = r["summary"]
         options.append({
             "id":              f"route_{chr(65 + i)}",   # route_A, route_B
