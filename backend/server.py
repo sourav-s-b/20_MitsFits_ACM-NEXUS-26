@@ -26,9 +26,9 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(run_simulation())
 
     # Auto-start a default shipment (SHP001) so the route is ready immediately
-    print("🚀 Auto-starting shipment SHP001 on boot...")
+    print("[Startup] Auto-starting shipment SHP001 on boot...")
     result = await start_shipment("SHP001")
-    print(f"   → {result.get('message', result)}")
+    print(f"   -> {result.get('message', result)}")
 
     yield  # app runs here
 
