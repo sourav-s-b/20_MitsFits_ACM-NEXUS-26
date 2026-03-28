@@ -63,3 +63,59 @@ def _default_shipment(shipment_id: str) -> dict:
         "pipeline_last_run": None,
         "shadow_route_ready": False,
     }
+import time
+from database import log_audit_event
+
+def apply_reroute_logic(shipment_id: str, route_id: str, reason_prefix: str = "Rerouted"):
+    """
+    Unified logic for applying a reroute to a shipment.
+    Resets risk, clears signals, updates polyline, and logs the event.
+    Used by both manual (UI) and autonomous (Autopilot) systems.
+    """
+    shipment = get_shipment(shipment_id)
+    
+    # 1. Update State
+    shipment["active_route"] = route_id
+    shipment["status"]       = "REROUTED"
+    shipment["risk_score"]   = 0.2
+    
+    # 2. Reset Sensors
+    shipment["signals"] = {"traffic_delay": 0, "weather_score": 0.0}
+    if "weather" in shipment:
+        shipment["weather"]["score"] = 0.0
+        
+    # 3. Update Polyline
+    new_route_found = False
+    for option in shipment.get("reroute_options", []):
+        if option["id"] == route_id:
+            shipment["route"]       = option["polyline"]
+            shipment["route_index"]  = 0
+            new_route_found = True
+            break
+            
+    # 4. Clean up state
+    shipment["shadow_route_ready"] = False
+    shipment["reroute_options"] = []
+    shipment["auto_reroute_armed"] = False
+    shipment["auto_reroute_deadline"] = None
+    shipment["last_auto_reroute_time"] = time.time()
+    shipment["critical_since"] = None
+    
+    # 5. Log & Audit
+    reason = f"✅ {reason_prefix} to {route_id} $ risk reduced to SAFE"
+    alert = {
+        "timestamp":  time.strftime("%H:%M"),
+        "reason":     reason,
+        "risk_score": 0.2,
+        "severity":   "REROUTED",
+        "event_type": "reroute"
+    }
+    shipment["alerts"].append(alert)
+    
+    # Persist the state update
+    set_shipment(shipment_id, shipment)
+    
+    # Database persistence
+    log_audit_event(shipment_id, time.strftime("%H:%M"), "reroute", 0.2, reason)
+    
+    return shipment, reason

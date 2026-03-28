@@ -321,8 +321,6 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
   );
 };
 
-
-
 const AnalyticsTab = ({ fleet }) => {
   const totalDelays = fleet.reduce((acc, s) => acc + (s.signals?.traffic_delay || 0), 0);
   const criticalCount = fleet.filter(s => s.status === "HIGH RISK").length;
@@ -378,11 +376,9 @@ const AnalyticsTab = ({ fleet }) => {
 // MAIN APP COMPONENT
 // ==========================================
 export default function App({ onLogout }) {
-  // Navigation State
-  const [activeTab, setActiveTab] = useState("map"); // 'map', 'fleet', 'history', 'account'
+  const [activeTab, setActiveTab] = useState("map");
   const [currentShipmentId, setCurrentShipmentId] = useState("SHP001");
 
-  // Map/Live State
   const [shipment, setShipment] = useState(null);
   const [reroutes, setReroutes] = useState([]);
   const [recommended, setRecommended] = useState(null);
@@ -390,7 +386,7 @@ export default function App({ onLogout }) {
   const [loading, setLoading] = useState(true);
   const [connError, setConnError] = useState(false);
   const [countdown, setCountdown] = useState(null);
-  const [pickingMode, setPickingMode] = useState(null); // 'origin' | 'target' | null
+  const [pickingMode, setPickingMode] = useState(null);
   const audioPlayed = useRef(false);
   const started = useRef(false);
   const currentIdRef = useRef(currentShipmentId);
@@ -399,11 +395,9 @@ export default function App({ onLogout }) {
     currentIdRef.current = currentShipmentId;
   }, [currentShipmentId]);
 
-  // APIs based on current selection
   const API = `${BASE_URL}/shipments/${currentShipmentId}`;
   const WS_URL = `${WS_BASE_URL}/ws/${currentShipmentId}`;
 
-  // Global Fleet State (for drawing all trucks and tabs)
   const [fleet, setFleet] = useState([]);
 
   useEffect(() => {
@@ -417,11 +411,11 @@ export default function App({ onLogout }) {
   useEffect(() => {
     let ws;
     let reconnectTimer;
-    // Reset tracker state smoothly
     setLoading(true);
-    setShipment(null); // Clear previous shipment data immediately
+    setShipment(null);
     started.current = false;
     setReroutes([]);
+    setSelected(null); // FIX: clear selected on shipment switch
 
     const connectWS = () => {
       ws = new WebSocket(WS_URL);
@@ -430,7 +424,6 @@ export default function App({ onLogout }) {
         try {
           const data = JSON.parse(event.data);
 
-          // CRITICAL: Double-check against ref to prevent stale closure updates/glitches
           if (data.shipment_id !== currentIdRef.current) return;
 
           setShipment(data);
@@ -442,9 +435,15 @@ export default function App({ onLogout }) {
             fetch(`${API}/start`, { method: "POST" }).catch(console.error);
           }
 
+          // FIX: autopilot already acted — clear panel immediately, don't show confirm button
+          if (data.status === "REROUTED") {
+            setReroutes([]);
+            setSelected(null);
+            return;
+          }
+
           if (data.reroute_options && data.reroute_options.length > 0) {
             setReroutes(data.reroute_options);
-            // Only auto-select if nothing is currently selected to avoid flickering
             if (!selected) {
               const rec = data.reroute_options.find(r => r.recommended);
               if (rec) { setRecommended(rec.id); setSelected(rec.id); }
@@ -469,7 +468,7 @@ export default function App({ onLogout }) {
     return () => { if (ws) ws.close(); clearTimeout(reconnectTimer); };
   }, [currentShipmentId, API, WS_URL]);
 
-  // ── Polling Fallback (if WS fails) ──
+  // ── Polling Fallback ──
   useEffect(() => {
     if (!connError) return;
     const poll = async () => {
@@ -477,6 +476,12 @@ export default function App({ onLogout }) {
         const res = await fetch(`${API}/state`);
         const data = await res.json();
         setShipment(data);
+        // FIX: also clear panel in polling path
+        if (data.status === "REROUTED") {
+          setReroutes([]);
+          setSelected(null);
+          return;
+        }
         if (data.reroute_options && data.reroute_options.length > 0 && reroutes.length === 0) {
           setReroutes(data.reroute_options);
         }
@@ -496,7 +501,6 @@ export default function App({ onLogout }) {
       if (resp.ok) {
         setReroutes([]);
         setSelected(null);
-        // Immediate refresh to ensure map sync
         const stateRes = await fetch(`${API}/state`);
         const stateData = await stateRes.json();
         setShipment(stateData);
@@ -514,7 +518,7 @@ export default function App({ onLogout }) {
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.type = 'square';
-      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 beep
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
       gain.gain.setValueAtTime(0.3, ctx.currentTime);
       osc.start();
       osc.stop(ctx.currentTime + 0.25);
@@ -530,8 +534,6 @@ export default function App({ onLogout }) {
       };
       updateTimer();
       timer = setInterval(updateTimer, 500);
-
-      // Audio Cue
       if (!audioPlayed.current) {
         playBeep();
         audioPlayed.current = true;
@@ -549,14 +551,11 @@ export default function App({ onLogout }) {
     } catch (e) { console.error(e); }
   };
 
-
-  // Handle Tab Switch Actions
   const handleSelectShipment = (id) => {
     setCurrentShipmentId(id);
     setActiveTab("map");
   };
 
-  // ── Pre-compute memoized route data (hooks must be at component top-level) ──
   const activeReroutes = shipment
     ? (reroutes.length > 0 ? reroutes : (shipment.reroute_options || []))
     : [];
@@ -576,33 +575,18 @@ export default function App({ onLogout }) {
     return selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
   }, [selRoute]);
 
-  // ══════════════════════════════════
-  // RENDER: SIDEBAR NAVIGATION
-  // ══════════════════════════════════
   const renderSidebar = () => (
     <nav className="dashboard-sidebar">
       <div className="sidebar-logo">
         <div className="onyx-logo-dot" /> {BRANDING.logoText}
       </div>
       <ul className="sidebar-nav">
-        <li className={activeTab === 'map' ? 'active' : ''} onClick={() => setActiveTab('map')}>
-          🗺️ Live Tracking
-        </li>
-        <li className={activeTab === 'fleet' ? 'active' : ''} onClick={() => setActiveTab('fleet')}>
-          🚛 Fleet Logistics
-        </li>
-        <li className={activeTab === 'schedule' ? 'active' : ''} onClick={() => setActiveTab('schedule')}>
-          ➕ Schedule Shipment
-        </li>
-        <li className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>
-          📊 Delivery Estimations
-        </li>
-        <li className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>
-          📦 Delivery History
-        </li>
-        <li className={activeTab === 'account' ? 'active' : ''} onClick={() => setActiveTab('account')}>
-          👤 My Account
-        </li>
+        <li className={activeTab === 'map' ? 'active' : ''} onClick={() => setActiveTab('map')}>🗺️ Live Tracking</li>
+        <li className={activeTab === 'fleet' ? 'active' : ''} onClick={() => setActiveTab('fleet')}>🚛 Fleet Logistics</li>
+        <li className={activeTab === 'schedule' ? 'active' : ''} onClick={() => setActiveTab('schedule')}>➕ Schedule Shipment</li>
+        <li className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>📊 Delivery Estimations</li>
+        <li className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>📦 Delivery History</li>
+        <li className={activeTab === 'account' ? 'active' : ''} onClick={() => setActiveTab('account')}>👤 My Account</li>
       </ul>
       <div className="sidebar-footer">
         Tracking: <br /><b style={{ color: 'white' }}>{currentShipmentId}</b>
@@ -610,17 +594,10 @@ export default function App({ onLogout }) {
     </nav>
   );
 
-  // ══════════════════════════════════
-  // RENDER: LIVE MAP TAB (Original View context)
-  // ══════════════════════════════════
   const MapEvents = () => {
     useMapEvents({
       click: (e) => {
         if (pickingMode === 'origin') {
-          // Indirect set via parent ScheduleTab would be better but we'll use a hack or proper state
-          // For now, let's assume ScheduleTab origin/target are actually in App level for easier pinning
-          // Actually, we'll just use a DOM event or a shared ref if needed. 
-          // BETTER: Move origin/target state to App level or use a global callback.
           window.dispatchEvent(new CustomEvent('map-click', { detail: { lat: e.latlng.lat, lon: e.latlng.lng, type: 'origin' } }));
         } else if (pickingMode === 'target') {
           window.dispatchEvent(new CustomEvent('map-click', { detail: { lat: e.latlng.lat, lon: e.latlng.lng, type: 'target' } }));
@@ -652,7 +629,6 @@ export default function App({ onLogout }) {
       try {
         const res = await fetch(`${API}/reroute`);
         const data = await res.json();
-        // Backend returns { options: [...] } — not data.routes
         const opts = data.options || data.routes || [];
         if (opts.length > 0) {
           setReroutes(opts);
@@ -703,7 +679,6 @@ export default function App({ onLogout }) {
             <Marker position={destPos} icon={destIcon} />
             <RecenterMap coords={shipment.current_location} />
 
-            {/* Render secondary fleet trucks on the map */}
             {fleet.map(f => {
               if (f.shipment_id === currentShipmentId) return null;
               if (!f.current_location) return null;
@@ -733,7 +708,7 @@ export default function App({ onLogout }) {
                 <div className="risk-shipment-id">{currentShipmentId} &bull; {shipment.eta || "--"}m</div>
               </div>
             </div>
-            
+
             <div style={{ marginTop: '15px', padding: '12px', background: 'rgba(0,0,0,0.3)', border: shipment.auto_pilot ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.3s' }}>
               <span style={{ fontSize: '13px', fontWeight: 'bold', color: shipment.auto_pilot ? '#10b981' : '#94a3b8' }}>{shipment.auto_pilot ? '🚀 Autopilot Active' : '🤖 Autopilot Ready'}</span>
               <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
@@ -825,7 +800,8 @@ export default function App({ onLogout }) {
             </div>
           )}
 
-          {activeReroutes.length > 0 && shipment.status !== "SAFE" && (
+          {/* FIX: hide entirely when REROUTED — autopilot already handled it, no manual button needed */}
+          {activeReroutes.length > 0 && shipment.status !== "SAFE" && shipment.status !== "REROUTED" && (
             <div className="onyx-card scale-up">
               <div className="onyx-card-title">💡 Strategic Trajectories ({activeReroutes.length})</div>
               <div className="route-options-grid">
@@ -863,7 +839,6 @@ export default function App({ onLogout }) {
     );
   };
 
-  // MAIN LAYOUT WRAPPER
   return (
     <div className="onyx-shell with-sidebar">
       {renderSidebar()}
@@ -874,7 +849,7 @@ export default function App({ onLogout }) {
         {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
         {activeTab === 'account' && <AccountTab onLogout={onLogout} />}
-      </main >
-    </div >
+      </main>
+    </div>
   );
 }

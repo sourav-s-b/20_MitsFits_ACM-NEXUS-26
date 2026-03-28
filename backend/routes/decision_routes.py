@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import requests
 import time
 
-from live_store import get_shipment, set_shipment
+from live_store import get_shipment, set_shipment, apply_reroute_logic
 from database import save_shipment, log_audit_event
 from websocket import manager
 
@@ -82,10 +82,10 @@ def build_alert(shipment_id: str, event_type: str, risk: float, shipment: dict) 
     log_audit_event(shipment_id, time.strftime("%H:%M"), event_type, risk, reason)
 
     return {
-        "timestamp": time.strftime("%H:%M"),
-        "reason":    reason,
+        "timestamp":  time.strftime("%H:%M"),
+        "reason":     reason,
         "risk_score": round(risk, 2),
-        "severity":  classify_status(risk),
+        "severity":   classify_status(risk),
         "event_type": event_type,
     }
 
@@ -133,11 +133,11 @@ def trigger_event(shipment_id: str, event: Event):
     save_shipment(shipment)
 
     return {
-        "ok": True,
+        "ok":        True,
         "event_type": etype,
         "risk_score": risk,
-        "status": shipment["status"],
-        "alert": alert,
+        "status":    shipment["status"],
+        "alert":     alert,
     }
 
 
@@ -165,16 +165,16 @@ async def get_reroute(shipment_id: str):
         )
         print(f"\n[Routing Intelligence] Requesting Alternatives...")
         print(f"   → URL: {url}")
-        
+
         resp_raw = requests.get(url, timeout=15)
         resp     = resp_raw.json()
         routes   = resp.get("routes", [])
-        
+
         print(f"   → Result: Found {len(routes)} potential trajectories")
         if routes:
             times = [r['summary']['travelTimeInSeconds'] for r in routes]
             print(f"   → Durations (min): {[round(t/60) for t in times]}")
-        
+
         if len(routes) == 0:
             print(f"⚠️  TomTom returned 0 routes. Retrying fallback...")
             fallback_url = (
@@ -194,17 +194,16 @@ async def get_reroute(shipment_id: str):
         return {"options": [], "recommended": None}
 
     options = []
-    # Take more alternatives for a better UI experience
     for i, r in enumerate(routes[:5]):
         s = r["summary"]
         options.append({
-            "id":              f"route_{chr(65 + i)}",   # route_A, route_B
+            "id":              f"route_{chr(65 + i)}",   # route_A, route_B, ...
             "travel_time_min": round(s["travelTimeInSeconds"] / 60),
             "distance_km":     round(s["lengthInMeters"] / 1000, 1),
             "polyline":        [{"lat": p["latitude"], "lon": p["longitude"]} for p in r["legs"][0]["points"]],
         })
 
-    # Recommend the faster option
+    # Recommend the fastest option
     recommended = min(options, key=lambda x: x["travel_time_min"])
     recommended["recommended"] = True
 
@@ -216,6 +215,7 @@ async def get_reroute(shipment_id: str):
     # Persist for confirm-reroute lookup
     shipment["reroute_options"] = options
     set_shipment(shipment_id, shipment)
+
     # Broadcast finding alternate routes
     await manager.broadcast(shipment_id, shipment)
 
@@ -230,56 +230,30 @@ async def confirm_reroute(shipment_id: str, selection: RouteSelection):
     """
     Apply the chosen alternate route, update route polyline, lower risk.
     """
-    shipment = get_shipment(shipment_id)
-
-    shipment["active_route"] = selection.route_id
-    shipment["status"]       = "REROUTED"
-    shipment["risk_score"]   = 0.2
-    # Reset signals so risk calculation drops immediately on new path
-    shipment["signals"] = {"traffic_delay": 0, "weather_score": 0.0}
-    if "weather" in shipment:
-        shipment["weather"]["score"] = 0.0
-
-    # Update active route polyline so the map redraws
-    new_route_found = False
-    for option in shipment.get("reroute_options", []):
-        if option["id"] == selection.route_id:
-            print(f"Applying new route {option['id']} with {len(option['polyline'])} pts from current pos")
-            shipment["route"]       = option["polyline"]
-            shipment["route_index"]  = 0
-            new_route_found = True
-            break
-
-    reason = (
-        f"✅ Rerouted to {selection.route_id} — risk reduced"
-        if new_route_found
-        else "Rerouted (using default path)"
+    # apply_reroute_logic handles alerts, state reset, and database logging.
+    shipment, reason = apply_reroute_logic(
+        shipment_id,
+        selection.route_id,
+        reason_prefix="Manual Reroute"
     )
-    shipment["alerts"].append({
-        "timestamp":  time.strftime("%H:%M"),
-        "reason":     reason,
-        "risk_score": 0.2,
-        "severity":   "SAFE",
-        "event_type": "reroute_confirmed",
-    })
 
-    shipment["reroute_options"] = []
-    shipment["shadow_route_ready"] = False
-
-    set_shipment(shipment_id, shipment)
+    # Persist and broadcast
     save_shipment(shipment)
-    log_audit_event(shipment_id, time.strftime("%H:%M"), "confirm_reroute", 0.2, reason)
-    
-    # Broadcast the successful reroute immediately
     await manager.broadcast(shipment_id, shipment)
 
-    return {"ok": True, "active_route": selection.route_id, "route_updated": new_route_found}
+    return {
+        "status":      "success",
+        "reason":      reason,
+        "shipment_id": shipment_id,
+    }
+
 
 # ══════════════════════════════════════════
 # POST /autopilot — Toggle AI Override
 # ══════════════════════════════════════════
 class AutopilotToggle(BaseModel):
     enabled: bool
+
 
 @router.post("/shipments/{shipment_id}/autopilot")
 async def toggle_autopilot(shipment_id: str, payload: AutopilotToggle):
@@ -290,15 +264,22 @@ async def toggle_autopilot(shipment_id: str, payload: AutopilotToggle):
     shipment = get_shipment(shipment_id)
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
-        
+
     shipment["auto_pilot"] = payload.enabled
-    
+
     set_shipment(shipment_id, shipment)
     save_shipment(shipment)
-    log_audit_event(shipment_id, time.strftime("%H:%M"), "toggle_autopilot", shipment.get("risk_score", 0.0), f"⚙️ Autopilot set to {'ON' if payload.enabled else 'OFF'}")
-    
+    log_audit_event(
+        shipment_id,
+        time.strftime("%H:%M"),
+        "toggle_autopilot",
+        shipment.get("risk_score", 0.0),
+        f"⚙️ Autopilot set to {'ON' if payload.enabled else 'OFF'}"
+    )
+
     await manager.broadcast(shipment_id, shipment)
     return {"ok": True, "auto_pilot": payload.enabled}
+
 
 # ══════════════════════════════════════════
 # POST /cancel-auto-reroute — SOP Override
@@ -312,19 +293,24 @@ async def cancel_auto_reroute(shipment_id: str):
     shipment = get_shipment(shipment_id)
     if not shipment:
         raise HTTPException(status_code=404, detail="Shipment not found")
-        
-    shipment["auto_reroute_armed"] = False
+
+    shipment["auto_reroute_armed"]    = False
     shipment["auto_reroute_deadline"] = None
     # Reset critical timer so it doesn't instantly retrigger while they rethink
-    shipment["critical_since"] = time.time() + 60  
-    
+    shipment["critical_since"] = time.time() + 60
+
     set_shipment(shipment_id, shipment)
     save_shipment(shipment)
-    log_audit_event(shipment_id, time.strftime("%H:%M"), "sop_override", shipment.get("risk_score", 0.0), "👨‍✈️ Driver cancelled auto-reroute (SOP Override)")
-    
+    log_audit_event(
+        shipment_id,
+        time.strftime("%H:%M"),
+        "sop_override",
+        shipment.get("risk_score", 0.0),
+        "👨‍✈️ Driver cancelled auto-reroute (SOP Override)"
+    )
+
     await manager.broadcast(shipment_id, shipment)
     return {"ok": True, "message": "Auto-reroute cancelled. Manual flight rules applied."}
-
 
 
 # ══════════════════════════════════════════

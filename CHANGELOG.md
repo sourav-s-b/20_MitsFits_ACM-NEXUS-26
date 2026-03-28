@@ -268,12 +268,18 @@
 - Global Autopilot override now proactively monitors for manual reroute options and triggers self-confirmation countdowns.
 - Reconstructed broken `index.css` design system, restoring AI Reasoning glow and premium glassmorphism aesthetic.
 
+## 08:37
+
+### Features Added
+- **Unified Reroute Engine**: Isolated and centralized the reroute execution logic into a shared helper in `live_store.py`. This ensures that **Autopilot**, **Manual UI**, and **Gated AI** confirmations are now 100% functionally identical (Resetting risk to 0.2, clearing traffic/weather signals, and updating polylines).
+- **Zero-Latency Simulations**: Refactored the simulation triggers (Storm, Accident, Roadblock) to use synchronous `await` operations. UI state now updates instantly upon button click by awaiting the full risk pipeline response.
+
 ### Files Modified
+- backend/live_store.py
 - backend/routes/decision_routes.py
 - backend/simulator.py
-- frontend/src/index.css
-- frontend/src/App.jsx
+- backend/routes/orchestration_routes.py
 
 ### Issues Faced
-- Sensors retaining high-hazard data after route switching causing risk-score oscillation loops.
-- Critical UI design tokens missing from stylesheet during merge conflict resolution.
+- Ellipsis placeholders in previous simulator logic causing potential syntax errors (Resolved).
+- Encoding issues with UTF-8 audit log symbols in the backend (Resolved).

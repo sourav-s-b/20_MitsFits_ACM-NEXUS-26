@@ -345,53 +345,53 @@ async def run_pipeline(shipment_id: str, override_weather_score: float = None, e
 
 
 @router.post("/shipments/{shipment_id}/simulate-storm")
-def simulate_storm(shipment_id: str, background_tasks: BackgroundTasks):
+async def simulate_storm(shipment_id: str):
     shipment = get_shipment(shipment_id)
     shipment["signals"]["traffic_delay"] = 52
     set_shipment(shipment_id, shipment)
 
-    # Offload the heavy pipeline processing to a background task
-    background_tasks.add_task(run_pipeline, shipment_id, 1.0)
+    # Await the pipeline immediately for zero-latency UI updates
+    await run_pipeline(shipment_id, 1.0)
 
     return {
-        "status": "processing",
+        "status": "active",
         "triggered_by": "simulate-storm",
-        "message": "🌩 Storm simulation started in background",
+        "message": "🌩 Storm simulation active",
     }
 
 
-def _trigger_event(shipment_id: str, event_type: str, background_tasks: BackgroundTasks):
+async def _trigger_event(shipment_id: str, event_type: str):
     shipment = get_shipment(shipment_id)
     shipment["signals"]["traffic_delay"] = 65  # Sufficient for high risk demonstration
     set_shipment(shipment_id, shipment)
-    background_tasks.add_task(run_pipeline, shipment_id, None, event_type)
-    return {"status": "processing", "message": f"{event_type.title()} simulation started"}
+    await run_pipeline(shipment_id, None, event_type)
+    return {"status": "active", "message": f"{event_type.title()} simulation active"}
 
 
 @router.post("/shipments/{shipment_id}/simulate-accident")
-def simulate_accident(shipment_id: str, background_tasks: BackgroundTasks):
-    return _trigger_event(shipment_id, "accident", background_tasks)
+async def simulate_accident(shipment_id: str):
+    return await _trigger_event(shipment_id, "accident")
 
 @router.post("/shipments/{shipment_id}/simulate-parade")
-def simulate_parade(shipment_id: str, background_tasks: BackgroundTasks):
-    return _trigger_event(shipment_id, "parade", background_tasks)
+async def simulate_parade(shipment_id: str):
+    return await _trigger_event(shipment_id, "parade")
 
 @router.post("/shipments/{shipment_id}/simulate-roadblock")
-def simulate_roadblock(shipment_id: str, background_tasks: BackgroundTasks):
-    return _trigger_event(shipment_id, "roadblock", background_tasks)
+async def simulate_roadblock(shipment_id: str):
+    return await _trigger_event(shipment_id, "roadblock")
 
 @router.post("/shipments/{shipment_id}/simulate-construction")
-def simulate_construction(shipment_id: str, background_tasks: BackgroundTasks):
-    return _trigger_event(shipment_id, "construction", background_tasks)
+async def simulate_construction(shipment_id: str):
+    return await _trigger_event(shipment_id, "construction")
 
 
 @router.get("/shipments/{shipment_id}/pipeline")
-def get_pipeline(shipment_id: str, background_tasks: BackgroundTasks):
-    # Offload standard polling run to background task
-    background_tasks.add_task(run_pipeline, shipment_id)
+async def get_pipeline(shipment_id: str):
+    # Synchronous pipeline execution for force-sync requests
+    await run_pipeline(shipment_id)
     return {
-        "status": "processing",
-        "message": "Pipeline queued in background",
+        "status": "complete",
+        "message": "Pipeline execution finished",
     }
 
 
