@@ -188,10 +188,15 @@ def _rag_lookup(level: str, weather: float, traffic: float, hour: int, event_typ
         return "SOP-DELTA: Risk threshold exceeded. Execute emergency avoidance maneuver and alert delivery hub."
     return "SOP-001: All corridor conditions nominal. Continuous AI monitoring active."
 
+RISK_ENGINE_URL = os.getenv("PERSON2_URL", "http://127.0.0.1:8001") + "/risk"
+
+
 async def scout_route_risk(shipment_id: str, polyline: list) -> float:
     """
     Strategic Scout: Samples 3 points along the potential route polyline
-    and calculates an average safety risk score using the logic engine.
+    and calculates an average safety risk score.
+    Attempts to use the XGBoost ML model (8001) first, then falls back to 
+    the Onyx-Brain rule engine.
     """
     if not polyline or len(polyline) < 3:
         return 0.5
@@ -200,11 +205,26 @@ async def scout_route_risk(shipment_id: str, polyline: list) -> float:
     indices = [len(polyline) // 4, len(polyline) // 2, (3 * len(polyline)) // 4]
     total_risk = 0.0
     
-    # Use deterministic logic engine to 'scout' these points
-    for idx in indices:
-        point = polyline[idx]
-        p_risk = call_person2(shipment_id, point["lat"], point["lon"])
-        total_risk += p_risk["risk"]
+    async with httpx.AsyncClient() as client:
+        for idx in indices:
+            point = polyline[idx]
+            p_risk_val = 0.5 # Default
+            
+            # --- Try XGBoost ML Engine ---
+            try:
+                params = {"lat": point["lat"], "lon": point["lon"]}
+                resp = await client.get(RISK_ENGINE_URL, params=params, timeout=0.8)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    p_risk_val = data["risk_score"]
+                else:
+                    raise Exception("ML Engine Error")
+            except Exception:
+                # --- Fallback to Onyx-Brain (Rules) ---
+                p2_result = call_person2(shipment_id, point["lat"], point["lon"])
+                p_risk_val = p2_result["risk"]
+            
+            total_risk += p_risk_val
         
     avg_risk = total_risk / len(indices)
     return round(avg_risk, 3)
