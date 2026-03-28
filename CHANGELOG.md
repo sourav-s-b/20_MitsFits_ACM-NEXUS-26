@@ -43,6 +43,19 @@
 ### Issues Faced
 - None explicitly stated
 
+## 09:45
+
+### Features Added
+- **Strategic Scout Engine**: Upgraded the Autopilot decision logic to rank alternative routes based on a weighted sum of **Travel Time (35%)** and **Safety Risk (65%)**.
+- **Safety Scouting**: Developed a new orchestrator helper that samples coordinates along every potential polyline and "scouts" them using the XGBoost/Onyx-Brain risk engine before selecting a trajectory.
+- **Dynamic Selection Logic**: Replaced the 1st-option-default with a dynamic cost-function selection (Selecting the 'Real Best' route).
+
+### Files Modified
+- backend/routes/orchestration_routes.py
+
+### Issues Faced
+- TomTom returning identical fast-but-congested alternatives (Resolved by weighting safety over time).
+
 ## 22:32
 
 ### Features Added
@@ -230,10 +243,7 @@
 - progress/10.md (Created)
 
 ### Issues Faced
-<<<<<<< HEAD
 - Accidental branch merges overwriting prior feature completions silently breaking React UI component polls.
-=======
->>>>>>> origin/main
 
 ## 08:06
 
