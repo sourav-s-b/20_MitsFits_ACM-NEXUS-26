@@ -160,11 +160,20 @@ async def get_reroute(shipment_id: str):
         url = (
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
-            f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=3&travelMode=truck"
-            f"&alternativeType=anyRoute"
+            f"?key={TOMTOM_KEY}&traffic=true&maxAlternatives=5&travelMode=truck"
+            f"&alternativeType=anyRoute&minDeviationDistance=0&minDeviationTime=0"
         )
-        resp   = requests.get(url, timeout=10).json()
-        routes = resp.get("routes", [])
+        print(f"\n[Routing Intelligence] Requesting Alternatives...")
+        print(f"   → URL: {url}")
+        
+        resp_raw = requests.get(url, timeout=15)
+        resp     = resp_raw.json()
+        routes   = resp.get("routes", [])
+        
+        print(f"   → Result: Found {len(routes)} potential trajectories")
+        if routes:
+            times = [r['summary']['travelTimeInSeconds'] for r in routes]
+            print(f"   → Durations (min): {[round(t/60) for t in times]}")
         
         if len(routes) == 0:
             print(f"⚠️  TomTom returned 0 routes. Retrying fallback...")

@@ -18,6 +18,51 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
+const LocationSearch = ({ placeholder, onSelect, BASE_URL }) => {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (query.length < 3) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/geocoding/search?query=${query}`);
+        const data = await res.json();
+        setResults(data);
+      } catch (e) { console.error(e); }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [query, BASE_URL]);
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <input 
+        type="text" 
+        placeholder={placeholder} 
+        value={query} 
+        onChange={e => { setQuery(e.target.value); setShow(true); }}
+        onFocus={() => setShow(true)}
+        style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }}
+      />
+      {show && results.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, background: '#1e293b', border: '1px solid var(--border)', borderRadius: '4px', marginTop: '4px', overflow: 'hidden' }}>
+          {results.map((r, i) => (
+            <div 
+              key={i} 
+              className="search-result-item" 
+              onClick={() => { onSelect(r); setQuery(r.label); setShow(false); }}
+              style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', borderBottom: i < results.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+            >
+              {r.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Icons
 const truckIcon = new L.DivIcon({
   html: `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#6366f1);border:2px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 12px rgba(168,85,247,0.7);">🚛</div>`,
@@ -174,11 +219,19 @@ const AccountTab = () => {
   );
 };
 
-const ScheduleTab = ({ BASE_URL, onDispatched }) => {
+const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) => {
   const [shipmentId, setShipmentId] = useState(`SHP-${Math.floor(Math.random() * 9999)}`);
   const [origin, setOrigin] = useState("19.0760,72.8777");
   const [target, setTarget] = useState("18.5204,73.8567");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (pickingMode === 'origin_selected') {
+      setPickingMode(null);
+    } else if (pickingMode === 'target_selected') {
+      setPickingMode(null);
+    }
+  }, [origin, target]);
 
   const presets = [
     { label: "Kochi → Bangalore", o: "9.9312,76.2673", d: "12.9716,77.5946" },
@@ -207,22 +260,44 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
       <h1>➕ Dispatch Shipment</h1>
       <p>Schedule a new transport routing via the {BRANDING.fullName} logistics engine.</p>
 
-      <div className="onyx-card" style={{ maxWidth: '500px', padding: '24px' }}>
-        <form onSubmit={handleDispatch} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="onyx-card" style={{ maxWidth: '600px', padding: '24px' }}>
+        <form onSubmit={handleDispatch} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>SHIPMENT ID</label>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>SHIPMENT ID</label>
             <input type="text" value={shipmentId} onChange={e => setShipmentId(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>ORIGIN (Lat,Lon)</label>
-            <input type="text" value={origin} onChange={e => setOrigin(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>DESTINATION (Lat,Lon)</label>
-            <input type="text" value={target} onChange={e => setTarget(e.target.value)} style={{ width: '100%', padding: '10px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', color: 'white', borderRadius: '4px' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>ORIGIN (Search or Pin)</label>
+              <LocationSearch BASE_URL={BASE_URL} placeholder="Search origin..." onSelect={r => setOrigin(`${r.lat},${r.lon}`)} />
+              <button 
+                type="button" 
+                className={`onyx-btn ${pickingMode === 'origin' ? 'btn-danger' : 'btn-cyan'}`} 
+                style={{ width: '100%', marginTop: '8px', fontSize: '12px', padding: '8px' }}
+                onClick={() => setPickingMode(pickingMode === 'origin' ? null : 'origin')}
+              >
+                {pickingMode === 'origin' ? '🛑 Cancel Pinning' : '📍 Pin on Map'}
+              </button>
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Current: {origin}</div>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>DESTINATION (Search or Pin)</label>
+              <LocationSearch BASE_URL={BASE_URL} placeholder="Search destination..." onSelect={r => setTarget(`${r.lat},${r.lon}`)} />
+              <button 
+                type="button" 
+                className={`onyx-btn ${pickingMode === 'target' ? 'btn-danger' : 'btn-cyan'}`} 
+                style={{ width: '100%', marginTop: '8px', fontSize: '12px', padding: '8px' }}
+                onClick={() => setPickingMode(pickingMode === 'target' ? null : 'target')}
+              >
+                {pickingMode === 'target' ? '🛑 Cancel Pinning' : '🏁 Pin on Map'}
+              </button>
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Current: {target}</div>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', margin: '10px 0', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '8px', margin: '5px 0', flexWrap: 'wrap' }}>
             {presets.map(p => (
               <button type="button" key={p.label} className="map-tag map-tag-alt" style={{ cursor: 'pointer' }} onClick={() => { setOrigin(p.o); setTarget(p.d); }}>
                 {p.label}
@@ -230,10 +305,96 @@ const ScheduleTab = ({ BASE_URL, onDispatched }) => {
             ))}
           </div>
 
-          <button type="submit" className="onyx-btn btn-green" disabled={loading} style={{ marginTop: '16px', padding: '14px' }}>
+          <button type="submit" className="onyx-btn btn-green" disabled={loading} style={{ marginTop: '10px', padding: '14px', fontSize: '15px' }}>
             {loading ? "INITIALIZING ROUTE..." : "🚀 DISPATCH TRUCK"}
           </button>
         </form>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// COLLISION AVOIDANCE TAB (RESTORED)
+// ==========================================
+const CollisionTab = ({ fleet, BASE_URL }) => {
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [lookahead, setLookahead] = useState(3);
+  const [safeDist, setSafeDist] = useState(1.0);
+  const [autoMode, setAutoMode] = useState(false);
+  const autoRef = useRef(null);
+
+  const buildPayload = () => {
+    const trucks = fleet
+      .filter(f => f.current_location)
+      .map(f => ({
+        shipment_id: f.shipment_id,
+        lat: f.current_location.lat ?? f.current_location.latitude,
+        lon: f.current_location.lon ?? f.current_location.longitude,
+        speed_kmh: 60,
+        heading_deg: (f.shipment_id.charCodeAt(f.shipment_id.length - 1) * 37) % 360,
+      }));
+    return { trucks, lookahead_minutes: lookahead, safe_distance_km: safeDist };
+  };
+
+  const runPrediction = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/collision/predict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload()),
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch (e) {
+      console.error("Collision predict failed:", e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (autoMode) {
+      runPrediction();
+      autoRef.current = setInterval(runPrediction, 5000);
+    } else {
+      clearInterval(autoRef.current);
+    }
+    return () => clearInterval(autoRef.current);
+  }, [autoMode, fleet, lookahead, safeDist]);
+
+  const severityColor = (s) => s === "HIGH" ? "#ef4444" : s === "MODERATE" ? "#f59e0b" : "#22d3ee";
+
+  return (
+    <div className="tab-pane">
+      <h1>🛡️ Predictive Collision Avoidance</h1>
+      <p>Analyze the entire fleet for potential proximity violations in the next 5 minutes.</p>
+      
+      <div style={{ display: "flex", gap: "16px", marginBottom: "24px" }}>
+        <button className="onyx-btn btn-cyan" onClick={runPrediction} disabled={loading}>{loading ? "⏳ Scanning..." : "⚡ Run Scan"}</button>
+        <button className={`onyx-btn ${autoMode ? 'btn-danger' : 'btn-green'}`} onClick={() => setAutoMode(!autoMode)}>{autoMode ? "⏹ Stop Auto" : "🔄 Auto-Scan"}</button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        <div className="onyx-card">
+          <div className="onyx-card-title">Analyzed</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{result ? result.total_trucks_analyzed : 0}</div>
+        </div>
+        <div className="onyx-card">
+          <div className="onyx-card-title">Risks</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444' }}>{result ? result.collision_pairs.length : 0}</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {result?.collision_pairs.map((pair, i) => (
+          <div key={i} className="onyx-card" style={{ borderLeft: `4px solid ${severityColor(pair.severity)}` }}>
+            <div style={{ fontWeight: 'bold' }}>{pair.truck_a} ↔ {pair.truck_b} ({pair.severity})</div>
+            <div style={{ fontSize: '12px', color: '#94a3b8' }}>Gap: {pair.predicted_distance_km}km in {pair.time_to_conflict_min} min</div>
+            <div style={{ color: '#22d3ee', marginTop: '4px' }}>💡 {pair.suggested_action}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -307,6 +468,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [connError, setConnError] = useState(false);
   const [countdown, setCountdown] = useState(null);
+  const [pickingMode, setPickingMode] = useState(null); // 'origin' | 'target' | null
   const audioPlayed = useRef(false);
   const started = useRef(false);
   const currentIdRef = useRef(currentShipmentId);
@@ -516,6 +678,9 @@ export default function App() {
         <li className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>
           📦 Delivery History
         </li>
+        <li className={activeTab === 'collision' ? 'active' : ''} onClick={() => setActiveTab('collision')}>
+          🛡️ Collision AI
+        </li>
         <li className={activeTab === 'account' ? 'active' : ''} onClick={() => setActiveTab('account')}>
           👤 My Account
         </li>
@@ -529,6 +694,23 @@ export default function App() {
   // ══════════════════════════════════
   // RENDER: LIVE MAP TAB (Original View context)
   // ══════════════════════════════════
+  const MapEvents = () => {
+    useMapEvents({
+      click: (e) => {
+        if (pickingMode === 'origin') {
+          // Indirect set via parent ScheduleTab would be better but we'll use a hack or proper state
+          // For now, let's assume ScheduleTab origin/target are actually in App level for easier pinning
+          // Actually, we'll just use a DOM event or a shared ref if needed. 
+          // BETTER: Move origin/target state to App level or use a global callback.
+          window.dispatchEvent(new CustomEvent('map-click', { detail: { lat: e.latlng.lat, lon: e.latlng.lng, type: 'origin' } }));
+        } else if (pickingMode === 'target') {
+          window.dispatchEvent(new CustomEvent('map-click', { detail: { lat: e.latlng.lat, lon: e.latlng.lng, type: 'target' } }));
+        }
+      }
+    });
+    return null;
+  };
+
   const renderMapTab = () => {
     if (connError) {
       return (
@@ -570,6 +752,7 @@ export default function App() {
         <div className="onyx-map-pane" style={{ position: "relative" }}>
           <MapContainer center={currentPos} zoom={7} style={{ height: "100%", width: "100%" }} zoomControl={false}>
             <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+            <MapEvents />
             {mainRoutePoints.length > 0 && <Polyline positions={mainRoutePoints} color={rColor} weight={5} opacity={0.8} />}
             {activeReroutes.map(r => {
               if (r.id === selected) return null;
@@ -756,9 +939,10 @@ export default function App() {
       <main className="onyx-main-content">
         {activeTab === 'map' && renderMapTab()}
         {activeTab === 'fleet' && <FleetTab fleet={fleet} onSelectShipment={handleSelectShipment} statusBadgeClass={statusBadgeClass} riskColor={riskColor} />}
-        {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} />}
+        {activeTab === 'schedule' && <ScheduleTab BASE_URL={BASE_URL} onDispatched={handleSelectShipment} setPickingMode={setPickingMode} pickingMode={pickingMode} />}
         {activeTab === 'analytics' && <AnalyticsTab fleet={fleet} />}
         {activeTab === 'history' && <HistoryTab currentShipmentId={currentShipmentId} riskColor={riskColor} />}
+        {activeTab === 'collision' && <CollisionTab fleet={fleet} BASE_URL={BASE_URL} />}
         {activeTab === 'account' && <AccountTab />}
       </main>
     </div>

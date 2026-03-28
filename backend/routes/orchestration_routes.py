@@ -201,8 +201,8 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
             f"https://api.tomtom.com/routing/1/calculateRoute"
             f"/{origin}:{dest}/json"
             f"?key={TOMTOM_KEY}"
-            f"&traffic=true&maxAlternatives=3&travelMode=truck"
-            f"&alternativeType=anyRoute"
+            f"&traffic=true&maxAlternatives=5&travelMode=truck"
+            f"&alternativeType=anyRoute&minDeviationDistance=0"
         )
         print(f"\n[Simulator Shadow] Pre-scanning paths for {shipment_id}...")
         async with httpx.AsyncClient() as client:
@@ -211,6 +211,9 @@ async def get_reroute_options_tomtom(shipment_id: str) -> list:
 
         routes = data.get("routes", [])
         print(f"   → Found {len(routes)} alternatives")
+        if routes:
+            times = [r['summary']['travelTimeInSeconds'] for r in routes]
+            print(f"   → Durations (min): {[round(t/60) for t in times]}")
 
         if not routes:
             fallback_url = (
