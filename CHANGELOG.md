@@ -230,7 +230,10 @@
 - progress/10.md (Created)
 
 ### Issues Faced
+<<<<<<< HEAD
 - Accidental branch merges overwriting prior feature completions silently breaking React UI component polls.
+=======
+>>>>>>> origin/main
 
 ## 08:06
 
@@ -239,16 +242,24 @@
 - Mended catastrophic 404 URL generation loop inside `App.jsx` React front-end caused by duplicated path string concatenations `/shipments/{id}/shipments/{id}`.
 - Patched logical bypass in API retry loops preventing blank arrays from correctly routing to backup GNews scrape configurations.
 - Engineered continuous countdown UX synchronization sequence alongside live driver Auto-Reroute SOP overrides.
+- **Global Geocoding Hub**: Integrated TomTom Search API (`geocoding_routes.py`) enabling dispatching via city names (e.g., "Mumbai", "London") instead of manual coordinates.
+- **Interactive Map Dispatch**: Restored full interactive pinning capability; users can now click the live map to set origin/destination targets with millisecond precision.
+- **Max-Diversity Routing Engine**: Stripped restrictive deviation anchors from TomTom's `calculateRoute` calls, successfully restoring 5-path trajectory visibility for demo-critical "Shadow Mode" rerouting.
+- **Status Dashboard Restoration**: Fully reconstructed the sidebar navigation and `Collision AI` monitoring panel that were lost during recent merge regressions.
 
 ### Files Modified
 - frontend/src/App.jsx
-- backend/intel_engine.py
+- backend/server.py
+- backend/routes/geocoding_routes.py
 - backend/routes/decision_routes.py
 - backend/routes/orchestration_routes.py
+- backend/intel_engine.py
 - backend/simulator.py
 
 ### Issues Faced
 - Strict Free-Tier API limits instantly triggering empty array logical bypasses inside standard Python try-except scraper loops.
+- **Resolved Frontend Crash**: Fixed `Uncaught ReferenceError: useMapEvents` in `App.jsx` caused by a missing library import during manual merge resolution.
+- **API Key Parameter Collision**: Identified that `minDeviationDistance=0` was paradoxically causing TomTom to return zero alternatives for near-origin route recalculations. Removed parameters to allow standard multi-path discovery.
 
 ## 08:22
 
@@ -266,4 +277,3 @@
 ### Issues Faced
 - Sensors retaining high-hazard data after route switching causing risk-score oscillation loops.
 - Critical UI design tokens missing from stylesheet during merge conflict resolution.
-

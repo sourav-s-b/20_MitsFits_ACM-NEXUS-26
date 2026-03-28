@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+﻿import { useState, useEffect, useRef, useMemo } from "react";
 import {
   MapContainer, TileLayer, Marker, Polyline, Circle, useMap, Tooltip, useMapEvents
 } from "react-leaflet";
@@ -10,7 +10,7 @@ import { BRANDING } from "./branding";
 const BASE_URL = "http://127.0.0.1:8000";
 const WS_BASE_URL = "ws://127.0.0.1:8000";
 
-// ── Fix Leaflet icon paths for Vite ──
+// ÔöÇÔöÇ Fix Leaflet icon paths for Vite ÔöÇÔöÇ
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
@@ -65,11 +65,11 @@ const LocationSearch = ({ placeholder, onSelect, BASE_URL }) => {
 
 // Icons
 const truckIcon = new L.DivIcon({
-  html: `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#6366f1);border:2px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 12px rgba(168,85,247,0.7);">🚛</div>`,
+  html: `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#a855f7,#6366f1);border:2px solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 12px rgba(168,85,247,0.7);">­ƒÜø</div>`,
   className: "", iconSize: [28, 28], iconAnchor: [14, 14],
 });
 const destIcon = new L.DivIcon({
-  html: `<div style="width:24px;height:24px;border-radius:50%;background:rgba(16,185,129,0.2);border:2px solid #10b981;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 0 10px rgba(16,185,129,0.5);">📍</div>`,
+  html: `<div style="width:24px;height:24px;border-radius:50%;background:rgba(16,185,129,0.2);border:2px solid #10b981;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 0 10px rgba(16,185,129,0.5);">­ƒôì</div>`,
   className: "", iconSize: [24, 24], iconAnchor: [12, 12],
 });
 
@@ -130,7 +130,7 @@ function RiskRing({ score }) {
 const FleetTab = ({ fleet, onSelectShipment, statusBadgeClass, riskColor }) => {
   return (
     <div className="tab-pane">
-      <h1>🚛 Fleet Management</h1>
+      <h1>­ƒÜø Fleet Management</h1>
       <p>Monitor all active deliveries across the {BRANDING.fullName} network.</p>
       <div className="data-table-container">
         <table className="data-table">
@@ -173,7 +173,7 @@ const HistoryTab = ({ currentShipmentId, riskColor }) => {
 
   return (
     <div className="tab-pane">
-      <h1>📦 Delivery Audit Engine ({currentShipmentId})</h1>
+      <h1>­ƒôª Delivery Audit Engine ({currentShipmentId})</h1>
       <p>Permanent ledger of AI intelligence events and interventions.</p>
       <div className="timeline">
         {history.length === 0 && <p style={{ color: '#888' }}>No audit logs found for this shipment.</p>}
@@ -207,7 +207,7 @@ const AccountTab = ({ onLogout }) => {
 
   return (
     <div className="tab-pane">
-      <h1>👤 Global Dispatcher Profile</h1>
+      <h1>­ƒæñ Global Dispatcher Profile</h1>
       <div className="onyx-card" style={{ maxWidth: '400px', marginTop: '20px' }}>
         <div className="onyx-card-title">Personnel File</div>
         <p><b>Name:</b> {user.name}</p>
@@ -241,9 +241,9 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
   }, [origin, target]);
 
   const presets = [
-    { label: "Kochi → Bangalore", o: "9.9312,76.2673", d: "12.9716,77.5946" },
-    { label: "Mumbai → Pune", o: "19.0760,72.8777", d: "18.5204,73.8567" },
-    { label: "Delhi → Jaipur", o: "28.6139,77.2090", d: "26.9124,75.7873" }
+    { label: "Kochi ÔåÆ Bangalore", o: "9.9312,76.2673", d: "12.9716,77.5946" },
+    { label: "Mumbai ÔåÆ Pune", o: "19.0760,72.8777", d: "18.5204,73.8567" },
+    { label: "Delhi ÔåÆ Jaipur", o: "28.6139,77.2090", d: "26.9124,75.7873" }
   ];
 
   const handleDispatch = async (e) => {
@@ -264,7 +264,7 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
 
   return (
     <div className="tab-pane">
-      <h1>➕ Dispatch Shipment</h1>
+      <h1>Ô×ò Dispatch Shipment</h1>
       <p>Schedule a new transport routing via the {BRANDING.fullName} logistics engine.</p>
 
       <div className="onyx-card" style={{ maxWidth: '600px', padding: '24px' }}>
@@ -284,7 +284,7 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
                 style={{ width: '100%', marginTop: '8px', fontSize: '12px', padding: '8px' }}
                 onClick={() => setPickingMode(pickingMode === 'origin' ? null : 'origin')}
               >
-                {pickingMode === 'origin' ? '🛑 Cancel Pinning' : '📍 Pin on Map'}
+                {pickingMode === 'origin' ? '­ƒøæ Cancel Pinning' : '­ƒôì Pin on Map'}
               </button>
               <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Current: {origin}</div>
             </div>
@@ -298,7 +298,7 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
                 style={{ width: '100%', marginTop: '8px', fontSize: '12px', padding: '8px' }}
                 onClick={() => setPickingMode(pickingMode === 'target' ? null : 'target')}
               >
-                {pickingMode === 'target' ? '🛑 Cancel Pinning' : '🏁 Pin on Map'}
+                {pickingMode === 'target' ? '­ƒøæ Cancel Pinning' : '­ƒÅü Pin on Map'}
               </button>
               <div style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>Current: {target}</div>
             </div>
@@ -313,7 +313,7 @@ const ScheduleTab = ({ BASE_URL, onDispatched, setPickingMode, pickingMode }) =>
           </div>
 
           <button type="submit" className="onyx-btn btn-green" disabled={loading} style={{ marginTop: '10px', padding: '14px', fontSize: '15px' }}>
-            {loading ? "INITIALIZING ROUTE..." : "🚀 DISPATCH TRUCK"}
+            {loading ? "INITIALIZING ROUTE..." : "­ƒÜÇ DISPATCH TRUCK"}
           </button>
         </form>
       </div>
@@ -330,7 +330,7 @@ const AnalyticsTab = ({ fleet }) => {
 
   return (
     <div className="tab-pane">
-      <h1>📊 Delivery Estimations / Analytics</h1>
+      <h1>­ƒôè Delivery Estimations / Analytics</h1>
       <p>Live predictive analytics against baseline models.</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
@@ -413,7 +413,7 @@ export default function App({ onLogout }) {
     return () => clearInterval(interval);
   }, []);
 
-  // ── WebSocket Connection for Live Map ──
+  // ÔöÇÔöÇ WebSocket Connection for Live Map ÔöÇÔöÇ
   useEffect(() => {
     let ws;
     let reconnectTimer;
@@ -469,7 +469,7 @@ export default function App({ onLogout }) {
     return () => { if (ws) ws.close(); clearTimeout(reconnectTimer); };
   }, [currentShipmentId, API, WS_URL]);
 
-  // ── Polling Fallback (if WS fails) ──
+  // ÔöÇÔöÇ Polling Fallback (if WS fails) ÔöÇÔöÇ
   useEffect(() => {
     if (!connError) return;
     const poll = async () => {
@@ -556,7 +556,7 @@ export default function App({ onLogout }) {
     setActiveTab("map");
   };
 
-  // ── Pre-compute memoized route data (hooks must be at component top-level) ──
+  // ÔöÇÔöÇ Pre-compute memoized route data (hooks must be at component top-level) ÔöÇÔöÇ
   const activeReroutes = shipment
     ? (reroutes.length > 0 ? reroutes : (shipment.reroute_options || []))
     : [];
@@ -576,9 +576,9 @@ export default function App({ onLogout }) {
     return selRoute ? selRoute.polyline.map(p => [p.latitude ?? p.lat, p.longitude ?? p.lon]) : [];
   }, [selRoute]);
 
-  // ══════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
   // RENDER: SIDEBAR NAVIGATION
-  // ══════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
   const renderSidebar = () => (
     <nav className="dashboard-sidebar">
       <div className="sidebar-logo">
@@ -586,22 +586,22 @@ export default function App({ onLogout }) {
       </div>
       <ul className="sidebar-nav">
         <li className={activeTab === 'map' ? 'active' : ''} onClick={() => setActiveTab('map')}>
-          🗺️ Live Tracking
+          ­ƒù║´©Å Live Tracking
         </li>
         <li className={activeTab === 'fleet' ? 'active' : ''} onClick={() => setActiveTab('fleet')}>
-          🚛 Fleet Logistics
+          ­ƒÜø Fleet Logistics
         </li>
         <li className={activeTab === 'schedule' ? 'active' : ''} onClick={() => setActiveTab('schedule')}>
-          ➕ Schedule Shipment
+          Ô×ò Schedule Shipment
         </li>
         <li className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>
-          📊 Delivery Estimations
+          ­ƒôè Delivery Estimations
         </li>
         <li className={activeTab === 'history' ? 'active' : ''} onClick={() => setActiveTab('history')}>
-          📦 Delivery History
+          ­ƒôª Delivery History
         </li>
         <li className={activeTab === 'account' ? 'active' : ''} onClick={() => setActiveTab('account')}>
-          👤 My Account
+          ­ƒæñ My Account
         </li>
       </ul>
       <div className="sidebar-footer">
@@ -610,9 +610,9 @@ export default function App({ onLogout }) {
     </nav>
   );
 
-  // ══════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
   // RENDER: LIVE MAP TAB (Original View context)
-  // ══════════════════════════════════
+  // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
   const MapEvents = () => {
     useMapEvents({
       click: (e) => {
@@ -634,7 +634,7 @@ export default function App({ onLogout }) {
     if (connError) {
       return (
         <div className="onyx-loading">
-          <div style={{ fontSize: 32, marginBottom: 8 }}>⚠️</div>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>ÔÜá´©Å</div>
           <p style={{ color: "var(--accent-red)", fontWeight: 600 }}>Backend Unreachable</p>
         </div>
       );
@@ -652,7 +652,7 @@ export default function App({ onLogout }) {
       try {
         const res = await fetch(`${API}/reroute`);
         const data = await res.json();
-        // Backend returns { options: [...] } — not data.routes
+        // Backend returns { options: [...] } ÔÇö not data.routes
         const opts = data.options || data.routes || [];
         if (opts.length > 0) {
           setReroutes(opts);
@@ -719,7 +719,7 @@ export default function App({ onLogout }) {
 
           <div className="map-overlay">
             <div className="map-tag map-tag-live"><div className="map-tag-dot" /> Live Route</div>
-            {weather.temp_c && <div className="map-tag" style={{ background: "rgba(99,102,241,0.12)", borderColor: "rgba(99,102,241,0.4)" }}>🌤 {weather.description} ({weather.temp_c}°C)</div>}
+            {weather.temp_c && <div className="map-tag" style={{ background: "rgba(99,102,241,0.12)", borderColor: "rgba(99,102,241,0.4)" }}>­ƒîñ {weather.description} ({weather.temp_c}┬░C)</div>}
           </div>
         </div>
 
@@ -733,31 +733,19 @@ export default function App({ onLogout }) {
                 <div className="risk-shipment-id">{currentShipmentId} &bull; {shipment.eta || "--"}m</div>
               </div>
             </div>
-            
-            <div style={{ marginTop: '15px', padding: '12px', background: 'rgba(0,0,0,0.3)', border: shipment.auto_pilot ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.3s' }}>
-              <span style={{ fontSize: '13px', fontWeight: 'bold', color: shipment.auto_pilot ? '#10b981' : '#94a3b8' }}>{shipment.auto_pilot ? '🚀 Autopilot Active' : '🤖 Autopilot Ready'}</span>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                <input type="checkbox" checked={!!shipment.auto_pilot} style={{ display: 'none' }} onChange={(e) => {
-                  fetch(`${API}/autopilot`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: e.target.checked }) });
-                }} />
-                <div style={{ width: '44px', height: '24px', background: shipment.auto_pilot ? '#10b981' : '#3f3f46', borderRadius: '12px', position: 'relative', transition: 'background 0.3s' }}>
-                  <div style={{ position: 'absolute', top: '2px', left: shipment.auto_pilot ? '22px' : '2px', width: '20px', height: '20px', background: 'white', borderRadius: '50%', transition: 'left 0.3s' }}></div>
-                </div>
-              </label>
-            </div>
           </div>
 
           {shipment.ai_reason && (
             <div className="onyx-card ai-insight-card ripple">
               <div className="onyx-card-title" style={{ color: '#22d3ee', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '16px' }}>🧠</span> AI REASONING / SOP
+                <span style={{ fontSize: '16px' }}>­ƒºá</span> AI REASONING / SOP
               </div>
               <p style={{ color: '#e2e8f0', fontSize: '13px', lineHeight: '1.5', margin: '8px 0' }}>
                 {shipment.ai_reason}
               </p>
               {shipment.is_compound && (
                 <div className="map-tag" style={{ background: 'rgba(239, 68, 68, 0.1)', borderColor: '#ef4444', color: '#ef4444', fontSize: '10px', marginTop: '8px' }}>
-                  ⚠️ COMPOUND HAZARD DETECTED
+                  ÔÜá´©Å COMPOUND HAZARD DETECTED
                 </div>
               )}
             </div>
@@ -789,13 +777,13 @@ export default function App({ onLogout }) {
             {weather.temp_c !== undefined && (
               <div className="weather-telemetry" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  <span>🌡 {weather.temp_c}°C</span>
-                  <span>💧 {weather.humidity}%</span>
-                  <span>💨 {weather.wind_kph} km/h</span>
+                  <span>­ƒîí {weather.temp_c}┬░C</span>
+                  <span>­ƒÆº {weather.humidity}%</span>
+                  <span>­ƒÆ¿ {weather.wind_kph} km/h</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                  <span>👁 {weather.visibility_km} km vis</span>
-                  {weather.rain_1h_mm > 0 && <span style={{ color: '#3b82f6' }}>🌧 {weather.rain_1h_mm}mm/h</span>}
+                  <span>­ƒæü {weather.visibility_km} km vis</span>
+                  {weather.rain_1h_mm > 0 && <span style={{ color: '#3b82f6' }}>­ƒîº {weather.rain_1h_mm}mm/h</span>}
                 </div>
               </div>
             )}
@@ -804,18 +792,18 @@ export default function App({ onLogout }) {
           <div className="onyx-card">
             <div className="onyx-card-title">Operations</div>
             <div className="onyx-btn-row" style={{ flexWrap: 'wrap', gap: '8px' }}>
-              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>🌩 Storm</button>
-              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-accident`, { method: 'POST' })}>🚗 Accident</button>
-              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-roadblock`, { method: 'POST' })}>🚧 Roadblock</button>
-              <button className="onyx-btn btn-cyan" onClick={() => fetch(`${API}/simulate-parade`, { method: 'POST' })}>🪩 Parade</button>
-              <button className="onyx-btn btn-cyan" onClick={() => fetch(`${API}/simulate-construction`, { method: 'POST' })}>🏗️ Const.</button>
-              <button className="onyx-btn btn-ghost" style={{ width: '100%' }} onClick={() => fetch(`${API}/pipeline`)}>⚡ Sync AI Pipeline</button>
+              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-storm`, { method: 'POST' })}>­ƒî® Storm</button>
+              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-accident`, { method: 'POST' })}>­ƒÜù Accident</button>
+              <button className="onyx-btn btn-danger" onClick={() => fetch(`${API}/simulate-roadblock`, { method: 'POST' })}>­ƒÜº Roadblock</button>
+              <button className="onyx-btn btn-cyan" onClick={() => fetch(`${API}/simulate-parade`, { method: 'POST' })}>­ƒ¬® Parade</button>
+              <button className="onyx-btn btn-cyan" onClick={() => fetch(`${API}/simulate-construction`, { method: 'POST' })}>­ƒÅù´©Å Const.</button>
+              <button className="onyx-btn btn-ghost" style={{ width: '100%' }} onClick={() => fetch(`${API}/pipeline`)}>ÔÜí Sync AI Pipeline</button>
             </div>
           </div>
 
           {(shipment.status === 'HIGH RISK' || shipment.status === 'WARNING') && (activeReroutes.length === 0) && shipment.shadow_route_ready && (
             <div className="onyx-card" style={{ border: "1px solid #ef4444", background: "rgba(239, 68, 68, 0.05)" }}>
-              <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>⚠️ ACTION REQUIRED</div>
+              <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>ÔÜá´©Å ACTION REQUIRED</div>
               <p style={{ color: '#fca5a5', fontSize: '12px', marginBottom: '12px' }}>
                 System has detected severe trajectory disruptions. Alternate routing intelligence standing by.
               </p>
@@ -827,7 +815,7 @@ export default function App({ onLogout }) {
 
           {activeReroutes.length > 0 && shipment.status !== "SAFE" && (
             <div className="onyx-card scale-up">
-              <div className="onyx-card-title">💡 Strategic Trajectories ({activeReroutes.length})</div>
+              <div className="onyx-card-title">­ƒÆí Strategic Trajectories ({activeReroutes.length})</div>
               <div className="route-options-grid">
                 {activeReroutes.map(r => (
                   <div key={r.id} className={`route-card ${selected === r.id ? "selected" : ""}`} onClick={() => setSelected(r.id)}>
@@ -838,7 +826,7 @@ export default function App({ onLogout }) {
               </div>
               {shipment?.auto_reroute_armed && countdown !== null ? (
                 <div style={{ textAlign: 'center', marginTop: '15px', padding: '15px', border: '1px solid #ff003c', borderRadius: '8px', background: 'rgba(255,0,60,0.05)', boxShadow: '0 0 15px rgba(255,0,60,0.3)' }}>
-                  <h4 style={{ color: '#ff003c', margin: '0 0 8px 0', animation: 'pulse 1s infinite' }}>⚠️ Critical Hazard Ahead</h4>
+                  <h4 style={{ color: '#ff003c', margin: '0 0 8px 0', animation: 'pulse 1s infinite' }}>ÔÜá´©Å Critical Hazard Ahead</h4>
                   <p style={{ color: '#fca5a5', fontSize: '13px', margin: '0 0 15px 0' }}>Rerouting in {countdown}s...</p>
 
                   <div style={{ position: 'relative', width: '64px', height: '64px', margin: '0 auto 15px auto' }}>

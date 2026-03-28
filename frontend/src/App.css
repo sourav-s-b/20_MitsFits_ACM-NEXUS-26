@@ -125,6 +125,7 @@
   padding: 14px 16px;
   backdrop-filter: blur(8px);
   transition: border-color 0.2s, box-shadow 0.2s;
+  flex-shrink: 0;
 }
 
 .onyx-card:hover {
